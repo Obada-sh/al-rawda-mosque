@@ -1,0 +1,693 @@
+/*
+ * Styles of the panel's own screens (the attendance desk, the sales desk
+ * of the points market), of the
+ * mosque's logo (the brand, the home banner, the letterhead of the
+ * reports and how reports print), of the marks of the demo, and a few
+ * corrections of the stock look of the admin panel. Everything else is
+ * the stock look.
+ */
+
+.rawda-scan {
+    display: grid;
+    gap: 1.5rem;
+    max-width: 48rem;
+    margin-inline: auto;
+    width: 100%;
+}
+
+.rawda-scan__desk {
+    display: grid;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.rawda-scan__label {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--gray-950);
+}
+
+.rawda-scan__box {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid var(--gray-300);
+    border-radius: 0.75rem;
+    background: #fff;
+    color: var(--gray-950);
+    font-family: var(--mono-font-family), Consolas, monospace;
+    font-size: 1.75rem;
+    letter-spacing: 0.2em;
+    text-align: center;
+}
+
+.rawda-scan__box:focus {
+    outline: none;
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-500) 25%, transparent);
+}
+
+.rawda-scan__hint {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+}
+
+.rawda-scan__answer {
+    display: grid;
+    gap: 0.25rem;
+    min-height: 11rem;
+    place-content: center;
+    padding: 1.5rem;
+    border: 2px solid transparent;
+    border-radius: 1rem;
+    text-align: center;
+}
+
+.rawda-scan__answer--idle {
+    border-color: var(--gray-200);
+    background: var(--gray-50);
+    color: var(--gray-500);
+}
+
+.rawda-scan__answer--success {
+    border-color: var(--success-500);
+    background: var(--success-50);
+    color: var(--success-700);
+}
+
+.rawda-scan__answer--warning {
+    border-color: var(--warning-500);
+    background: var(--warning-50);
+    color: var(--warning-700);
+}
+
+.rawda-scan__answer--danger {
+    border-color: var(--danger-500);
+    background: var(--danger-50);
+    color: var(--danger-700);
+}
+
+.rawda-scan__message {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.rawda-scan__photo {
+    width: 7rem;
+    height: 7rem;
+    margin: 0 auto 0.5rem;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+}
+
+.rawda-scan__kind,
+.rawda-scan__tag {
+    display: inline-block;
+    padding: 0.1rem 0.75rem;
+    border-radius: 9999px;
+    background: var(--primary-600);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.rawda-scan__kind {
+    justify-self: center;
+    width: fit-content;
+    margin-inline: auto;
+}
+
+.rawda-scan__tag {
+    margin-inline-start: 0.5rem;
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+    vertical-align: middle;
+}
+
+.rawda-scan__student {
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--gray-950);
+}
+
+.rawda-scan__place {
+    font-size: 1.125rem;
+    color: var(--gray-700);
+}
+
+.rawda-scan__offer {
+    margin-top: 0.75rem;
+}
+
+.rawda-scan__empty {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+}
+
+.rawda-scan__recent {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.rawda-scan__recent li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 0.9375rem;
+}
+
+.rawda-scan__recent li:last-child {
+    border-bottom: 0;
+}
+
+.rawda-scan__recent-name {
+    font-weight: 600;
+    color: var(--gray-950);
+}
+
+.rawda-scan__recent-circle,
+.rawda-scan__recent-time {
+    color: var(--gray-500);
+}
+
+/*
+ * The sales desk of a points market: the items on one side (a click puts
+ * one in the basket), the basket, the scanner box and the answer on the
+ * other. On a narrow screen they stack.
+ */
+
+.rawda-desk {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+    grid-template-areas:
+        "heading heading"
+        "items side";
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.rawda-desk__heading {
+    grid-area: heading;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 1rem;
+}
+
+.rawda-desk__market {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--gray-950);
+}
+
+.rawda-desk__market span {
+    font-weight: 500;
+    color: var(--gray-500);
+}
+
+.rawda-desk__items {
+    grid-area: items;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.875rem;
+}
+
+.rawda-desk__side {
+    grid-area: side;
+    display: grid;
+    gap: 1rem;
+    position: sticky;
+    top: 5rem;
+}
+
+.rawda-desk__item {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    gap: 0.35rem;
+    padding: 0.875rem 0.75rem;
+    border: 2px solid var(--gray-200);
+    border-radius: 0.875rem;
+    background: #fff;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.1s, box-shadow 0.1s;
+}
+
+.rawda-desk__item:hover {
+    border-color: var(--primary-400);
+}
+
+.rawda-desk__item.is-chosen {
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-500) 20%, transparent);
+}
+
+.rawda-desk__item.is-sold-out {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.rawda-desk__count {
+    position: absolute;
+    top: 0.5rem;
+    inset-inline-start: 0.5rem;
+    min-width: 1.75rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 9999px;
+    background: var(--primary-600);
+    color: #fff;
+    font-weight: 700;
+}
+
+.rawda-desk__picture {
+    width: 100%;
+    height: 6.5rem;
+    border-radius: 0.5rem;
+    object-fit: contain;
+}
+
+.rawda-desk__picture--none {
+    display: grid;
+    place-items: center;
+    background: var(--gray-50);
+    color: var(--gray-300);
+}
+
+.rawda-desk__picture-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+}
+
+.rawda-desk__name {
+    font-weight: 700;
+    color: var(--gray-950);
+}
+
+.rawda-desk__description {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 0.8125rem;
+    color: var(--gray-500);
+}
+
+.rawda-desk__price {
+    padding: 0.1rem 0.75rem;
+    border-radius: 9999px;
+    background: var(--primary-50);
+    color: var(--primary-700);
+    font-weight: 700;
+}
+
+.rawda-desk__stock {
+    font-size: 0.8125rem;
+    color: var(--gray-500);
+}
+
+.rawda-desk__note {
+    font-size: 0.9375rem;
+    color: var(--gray-500);
+}
+
+.rawda-desk__link {
+    color: var(--primary-600);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.rawda-desk__markets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.rawda-desk__basket {
+    display: grid;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    list-style: none;
+}
+
+.rawda-desk__basket li {
+    display: grid;
+    grid-template-columns: 1fr auto 3.5rem auto;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.rawda-desk__basket-name {
+    font-weight: 600;
+    color: var(--gray-950);
+}
+
+.rawda-desk__stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rawda-desk__stepper button,
+.rawda-desk__remove {
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid var(--gray-300);
+    border-radius: 0.5rem;
+    background: #fff;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.rawda-desk__remove {
+    border-color: transparent;
+    color: var(--danger-600);
+}
+
+.rawda-desk__basket-points {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    color: var(--gray-700);
+}
+
+.rawda-desk__total {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 1.125rem;
+}
+
+.rawda-desk__answer {
+    min-height: 9rem;
+}
+
+.rawda-desk__student {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--gray-950);
+}
+
+.rawda-desk__bought {
+    font-weight: 600;
+}
+
+.rawda-desk__figure {
+    font-size: 1.125rem;
+}
+
+.rawda-desk__recent-lines {
+    display: block;
+    font-weight: 400;
+    font-size: 0.8125rem;
+    color: var(--gray-500);
+}
+
+@media (max-width: 64rem) {
+    .rawda-desk {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "heading"
+            "side"
+            "items";
+    }
+
+    .rawda-desk__side {
+        position: static;
+    }
+}
+
+/*
+ * What scrolls inside a page (the menu, a list of choices, a wide table)
+ * does so with a thin bar. The page itself keeps the bar of the browser.
+ */
+
+.fi-body * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-300) transparent;
+}
+
+/*
+ * A large sum of money stays inside its card: on a narrow screen the
+ * figure shrinks with the card instead of running out of it.
+ */
+
+.fi-wi-stats-overview-stat {
+    container-type: inline-size;
+}
+
+.fi-wi-stats-overview-stat-value {
+    font-size: clamp(1.125rem, 11.5cqi, 1.875rem);
+}
+
+/* The demo says it is the demo: on every page, and on its sign-in page. */
+
+.rawda-demo-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-inline-start: 0.75rem;
+    padding: 0.125rem 0.75rem;
+    border: 1px solid var(--warning-400);
+    border-radius: 999px;
+    background: var(--warning-50);
+    color: var(--warning-700);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.rawda-demo-sign-in {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--warning-400);
+    border-radius: 0.75rem;
+    background: var(--warning-50);
+    color: var(--gray-950);
+    font-size: 0.875rem;
+    line-height: 1.7;
+}
+
+.rawda-demo-sign-in p {
+    margin: 0;
+}
+
+.rawda-demo-sign-in__title {
+    color: var(--warning-700);
+    font-weight: 700;
+}
+
+.rawda-demo-sign-in dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0;
+}
+
+.rawda-demo-sign-in dt {
+    color: var(--gray-700);
+}
+
+.rawda-demo-sign-in dd {
+    margin: 0;
+    font-family: var(--mono-font-family), Consolas, monospace;
+    font-weight: 600;
+}
+
+/*
+ * The brand: the mosque's logo and its name, at the top of the menu and,
+ * larger and one above the other, above the sign-in form.
+ */
+.rawda-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    height: 100%;
+}
+
+.rawda-brand__logo {
+    height: 100%;
+    width: auto;
+    flex-shrink: 0;
+}
+
+.rawda-brand__name {
+    overflow: hidden;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--gray-950);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.fi-simple-header .fi-logo {
+    height: auto !important;
+}
+
+.fi-simple-header .rawda-brand {
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.fi-simple-header .rawda-brand__logo {
+    height: 7.5rem;
+}
+
+.fi-simple-header .rawda-brand__name {
+    font-size: 1.25rem;
+    text-align: center;
+}
+
+/* The top of the home page. */
+.rawda-banner {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+    outline: 1px solid var(--gray-950-a05, rgb(0 0 0 / 0.05));
+}
+
+.rawda-banner__logo {
+    height: 5.5rem;
+    width: auto;
+    flex-shrink: 0;
+}
+
+.rawda-banner__name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--gray-950);
+}
+
+.rawda-banner__date {
+    margin-top: 0.25rem;
+    color: var(--gray-500);
+}
+
+/*
+ * The letterhead of a report: the logo and the mosque's name at the
+ * start, the report and what it covers in the middle, the day at the end.
+ */
+.rawda-letterhead {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1.25rem;
+    align-items: center;
+    padding: 0.875rem 1.5rem;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+    outline: 1px solid var(--gray-950-a05, rgb(0 0 0 / 0.05));
+}
+
+.rawda-letterhead__logo {
+    height: 4.5rem;
+    width: auto;
+}
+
+.rawda-letterhead__mosque {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--primary-700);
+}
+
+.rawda-letterhead__title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--gray-950);
+}
+
+.rawda-letterhead__scope {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+}
+
+.rawda-letterhead__date {
+    align-self: start;
+    font-size: 0.8125rem;
+    color: var(--gray-500);
+}
+
+@media (max-width: 40rem) {
+    .rawda-letterhead {
+        grid-template-columns: auto 1fr;
+    }
+
+    .rawda-letterhead__date {
+        grid-column: 1 / -1;
+    }
+}
+
+/*
+ * A page printed from the panel (a report): only the content, under its
+ * letterhead. The menu, the top bar, the buttons and the filter stay on
+ * the screen; the parts of the report do not break across pages.
+ */
+@media print {
+    @page {
+        size: A4;
+        margin: 12mm;
+    }
+
+    html,
+    body,
+    .fi-body {
+        background: #fff !important;
+    }
+
+    body {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .fi-sidebar,
+    .fi-sidebar-close-overlay,
+    .fi-layout-sidebar-toggle-btn-ctn,
+    .fi-topbar-ctn,
+    .fi-header,
+    .fi-ta-header-toolbar,
+    .fi-pagination,
+    .fi-no-notification,
+    .rawda-screen-only {
+        display: none !important;
+    }
+
+    .fi-main-ctn,
+    .fi-main,
+    .fi-layout {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: none !important;
+    }
+
+    .fi-wi-widget,
+    .fi-section,
+    .fi-ta-ctn,
+    .rawda-letterhead {
+        break-inside: avoid;
+        box-shadow: none !important;
+    }
+
+    .rawda-letterhead {
+        outline: 0;
+        border-bottom: 2px solid var(--primary-600);
+        border-radius: 0;
+        padding-inline: 0;
+    }
+}

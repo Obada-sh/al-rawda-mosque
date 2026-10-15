@@ -1,0 +1,143 @@
+/*
+ * The page that prints the attendance cards (resources/views/cards/print.blade.php).
+ * The card itself is an SVG drawing (cards/badge.blade.php); this file
+ * lays the cards out on paper, in one of two ways:
+ *
+ *   .sheet    an A4 sheet of 3 × 3 cards, to cut out along the hairlines
+ *   .single   one card on a page of its own size (a card printer)
+ *
+ * The page gives the measures: --card-w, --card-h, --columns, --rows, --gap
+ * The bar at the top (back, logo, print) is in print-toolbar.css.
+ */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #e5e7eb;
+    color: #111827;
+    font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+}
+
+/* The shared definitions of the cards take no room. */
+.rawda-badge-defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.toolbar-choices {
+    display: flex;
+    overflow: hidden;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+}
+
+.toolbar-choices a {
+    padding: 0.4rem 1rem;
+    color: #374151;
+}
+
+.toolbar-choices a + a {
+    border-inline-start: 1px solid #d1d5db;
+}
+
+.toolbar-choices a.is-current {
+    background: #3e8563;
+    color: #fff;
+}
+
+.empty {
+    margin: 3rem;
+    text-align: center;
+    color: #4b5563;
+}
+
+.advice {
+    margin: 1rem 1.25rem 0;
+    text-align: center;
+    color: #4b5563;
+    font-size: 0.9rem;
+}
+
+.rawda-badge {
+    display: block;
+}
+
+/* On the screen the sheet looks like the paper it will be printed on. */
+.sheet {
+    display: grid;
+    grid-template-columns: repeat(var(--columns), var(--card-w));
+    grid-template-rows: repeat(var(--rows), var(--card-h));
+    gap: var(--gap);
+    align-content: center;
+    justify-content: center;
+    width: 210mm;
+    height: 297mm;
+    margin: 6mm auto;
+    background: #fff;
+    /* Cards follow one another from the right, like the Arabic page. */
+    direction: rtl;
+}
+
+/* A hairline along the edge of every card, to cut along. */
+.slot {
+    width: var(--card-w);
+    height: var(--card-h);
+    outline: 0.1mm solid #c8c8c8;
+    break-inside: avoid;
+}
+
+.singles {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6mm;
+    padding: 6mm;
+}
+
+.single {
+    width: var(--card-w);
+    height: var(--card-h);
+    background: #fff;
+    break-inside: avoid;
+}
+
+@media print {
+    body {
+        background: #fff;
+        /* The design's colours, not the printer's idea of saving ink. */
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .advice {
+        display: none;
+    }
+
+    .sheet {
+        margin: 0;
+        break-after: page;
+    }
+
+    .sheet:last-child {
+        break-after: auto;
+    }
+
+    .singles {
+        display: block;
+        padding: 0;
+    }
+
+    .single {
+        break-after: page;
+    }
+
+    .single:last-child {
+        break-after: auto;
+    }
+}

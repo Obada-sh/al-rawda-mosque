@@ -1,0 +1,24 @@
+* text=auto eol=lf
+
+# Windows runs a script correctly only when its lines end the Windows way,
+# on every computer and whatever git is set to there (LauncherTest checks it).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Never touched as text.
+*.pptx binary
+*.woff2 binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.zip binary
+
+*.blade.php diff=html
+*.css diff=css
+*.html diff=html
+*.md diff=markdown
+*.php diff=php
+
+/.github export-ignore
+CHANGELOG.md export-ignore
+.styleci.yml export-ignore
