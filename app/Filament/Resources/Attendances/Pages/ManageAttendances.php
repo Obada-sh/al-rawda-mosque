@@ -6,6 +6,7 @@ use App\Actions\Attendance\RecordManualAttendance;
 use App\Filament\Pages\ScanAttendance;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Support\Attempt;
+use App\Filament\Support\Attendance\BulkAttendanceAction;
 use App\Filament\Support\Fields\EnrollmentSelect;
 use App\Models\Attendance;
 use App\Support\Dates;
@@ -26,6 +27,7 @@ class ManageAttendances extends ManageRecords
                 ->icon(Heroicon::OutlinedQrCode)
                 ->color('gray')
                 ->url(fn (): string => ScanAttendance::getUrl()),
+            BulkAttendanceAction::make(),
             $this->manualAttendanceAction(),
         ];
     }

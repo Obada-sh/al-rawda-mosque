@@ -6,14 +6,16 @@ use App\Services\Export\Pptx\InvalidSlideTemplate;
 use App\Services\Export\Pptx\SlideContent;
 use App\Services\Export\Pptx\SlideDeckTemplate;
 use App\Services\Export\Pptx\SlideShowOptions;
+use App\Services\Export\Pptx\TextFitter;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\Deck;
 use ZipArchive;
 
 /**
- * The engine that turns a slide template into a presentation, tried on
- * the default templates the system ships with.
+ * The engine that turns a slide template into a presentation: the board
+ * of the default design the system ships with (one cell repeated for
+ * every student), and designs with numbered places (tests/Fixtures).
  */
 class SlideDeckTemplateTest extends TestCase
 {
@@ -29,9 +31,30 @@ class SlideDeckTemplateTest extends TestCase
         parent::tearDown();
     }
 
-    private static function defaultTemplate(int $leaders): string
+    /** The placeholders of a student in the leaders' slides (LeadersTemplates::STUDENT_PLACEHOLDERS). */
+    private const CELL = ['place', 'name', 'score', 'value', 'unit'];
+
+    /** A design with that many numbered places ({{name1}}...), with cards and medals for the first places. */
+    private static function numbered(int $places): string
     {
-        return dirname(__DIR__, 2)."/resources/pptx/leaders-{$leaders}.pptx";
+        return dirname(__DIR__, 2)."/tests/Fixtures/slides/numbered-{$places}.pptx";
+    }
+
+    /** The default design: a board. */
+    private static function board(): string
+    {
+        return dirname(__DIR__, 2).'/resources/pptx/leaders.pptx';
+    }
+
+    /**
+     * @return list<array<string, string>> the cells of so many students, the first one first
+     */
+    private static function students(int $count): array
+    {
+        return array_map(
+            fn (int $place): array => ['place' => (string) $place, 'name' => "طالب {$place}", 'value' => (string) (100 - $place)],
+            range(1, $count),
+        );
     }
 
     /**
@@ -55,10 +78,10 @@ class SlideDeckTemplateTest extends TestCase
      *
      * @param  callable(string): string  $edit  receives and returns the XML of the slide
      */
-    private function editedTemplate(int $leaders, callable $edit): string
+    private function editedTemplate(string $template, callable $edit): string
     {
         $path = $this->temporaryFile();
-        copy(self::defaultTemplate($leaders), $path);
+        copy($template, $path);
 
         $zip = new ZipArchive;
         $zip->open($path);
@@ -76,22 +99,24 @@ class SlideDeckTemplateTest extends TestCase
         return $this->temporaryFiles[] = $path;
     }
 
-    public function test_every_default_template_has_the_slots_its_name_says(): void
+    public function test_a_design_with_numbered_places_has_as_many_slots(): void
     {
-        foreach (range(1, 10) as $leaders) {
-            $template = SlideDeckTemplate::open(self::defaultTemplate($leaders));
+        foreach ([1, 3, 4] as $places) {
+            $template = SlideDeckTemplate::open(self::numbered($places), self::CELL);
 
-            $this->assertSame($leaders, $template->slots(), "leaders-{$leaders}.pptx");
+            $this->assertFalse($template->isBoard());
+            $this->assertSame($places, $template->slots());
+            $this->assertSame($places, $template->itemsPerSlide());
 
-            foreach (['mosque', 'criterion', 'circle', 'supervisor_line', 'course', 'period', "place{$leaders}", "name{$leaders}", "score{$leaders}"] as $placeholder) {
-                $this->assertContains($placeholder, $template->placeholders(), "leaders-{$leaders}.pptx");
+            foreach (['mosque', 'criterion', 'circle', 'supervisor_line', 'course', 'period', "place{$places}", "name{$places}", "score{$places}"] as $placeholder) {
+                $this->assertContains($placeholder, $template->placeholders(), "numbered-{$places}.pptx");
             }
         }
     }
 
     public function test_one_filled_slide_is_made_for_each_item_in_the_given_order(): void
     {
-        $bytes = SlideDeckTemplate::open(self::defaultTemplate(3))->render([
+        $bytes = SlideDeckTemplate::open(self::numbered(3))->render([
             new SlideContent([
                 'mosque' => 'جامع الروضة',
                 'circle' => 'حلقة أ',
@@ -129,7 +154,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_a_placeholder_without_a_value_leaves_nothing_behind(): void
     {
-        $deck = new Deck(SlideDeckTemplate::open(self::defaultTemplate(1))->render(
+        $deck = new Deck(SlideDeckTemplate::open(self::numbered(1))->render(
             [new SlideContent(['circle' => 'حلقة أ', 'name1' => 'أحمد'], [1 => 1])],
             new SlideShowOptions,
         ));
@@ -139,7 +164,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_a_value_is_written_as_text_whatever_it_contains(): void
     {
-        $deck = new Deck(SlideDeckTemplate::open(self::defaultTemplate(1))->render(
+        $deck = new Deck(SlideDeckTemplate::open(self::numbered(1))->render(
             [new SlideContent(['circle' => 'حلقة <أ> & "ب" {{name1}}', 'name1' => "O'Neil </a:t>"], [1 => 1])],
             new SlideShowOptions,
         ));
@@ -151,7 +176,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_a_placeholder_cut_into_pieces_by_powerpoint_is_still_found(): void
     {
-        $template = SlideDeckTemplate::open($this->editedTemplate(1, fn (string $xml): string => str_replace(
+        $template = SlideDeckTemplate::open($this->editedTemplate(self::numbered(1), fn (string $xml): string => str_replace(
             '<a:t>{{circle}}</a:t>',
             '<a:t>{{cir</a:t></a:r><a:r><a:t>cle</a:t></a:r><a:r><a:t>}} المباركة</a:t>',
             $xml,
@@ -166,7 +191,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_placeholders_are_found_whatever_their_case_and_spacing(): void
     {
-        $template = SlideDeckTemplate::open($this->editedTemplate(1, fn (string $xml): string => str_replace(
+        $template = SlideDeckTemplate::open($this->editedTemplate(self::numbered(1), fn (string $xml): string => str_replace(
             ['{{circle}}', '{{name1}}'],
             ['{{ Circle }}', '{{NAME1}}'],
             $xml,
@@ -181,7 +206,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_the_shapes_of_an_empty_slot_are_removed(): void
     {
-        $deck = new Deck(SlideDeckTemplate::open(self::defaultTemplate(3))->render(
+        $deck = new Deck(SlideDeckTemplate::open(self::numbered(3))->render(
             [self::circle('حلقة أ', [1 => 1, 2 => 2])],
             new SlideShowOptions,
         ));
@@ -199,7 +224,7 @@ class SlideDeckTemplateTest extends TestCase
     public function test_a_slot_takes_the_look_of_the_place_it_holds(): void
     {
         // Two students tied for the first place, then a third and a fourth place.
-        $deck = new Deck(SlideDeckTemplate::open(self::defaultTemplate(4))->render(
+        $deck = new Deck(SlideDeckTemplate::open(self::numbered(4))->render(
             [self::circle('حلقة أ', [1 => 1, 2 => 1, 3 => 3, 4 => 4])],
             new SlideShowOptions,
         ));
@@ -219,7 +244,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_without_places_every_shape_is_kept(): void
     {
-        $template = self::defaultTemplate(4);
+        $template = self::numbered(4);
 
         $deck = new Deck(SlideDeckTemplate::open($template)->render([self::circle('حلقة أ', null)], new SlideShowOptions));
 
@@ -228,7 +253,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_the_template_slide_is_replaced_by_its_copies_in_the_file(): void
     {
-        $deck = new Deck(SlideDeckTemplate::open(self::defaultTemplate(2))->render(
+        $deck = new Deck(SlideDeckTemplate::open(self::numbered(3))->render(
             [self::circle('حلقة أ', [1 => 1]), self::circle('حلقة ب', [1 => 1]), self::circle('حلقة ج', [1 => 1])],
             new SlideShowOptions,
         ));
@@ -255,7 +280,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_the_show_loops_and_moves_on_by_itself(): void
     {
-        $deck = new Deck(SlideDeckTemplate::open(self::defaultTemplate(3))->render(
+        $deck = new Deck(SlideDeckTemplate::open(self::numbered(3))->render(
             [self::circle('حلقة أ', [1 => 1]), self::circle('حلقة ب', [1 => 1])],
             new SlideShowOptions(secondsPerSlide: 8, loop: true),
         ));
@@ -270,7 +295,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_the_timing_and_the_loop_can_be_left_to_the_template(): void
     {
-        $deck = new Deck(SlideDeckTemplate::open(self::defaultTemplate(3))->render(
+        $deck = new Deck(SlideDeckTemplate::open(self::numbered(3))->render(
             [self::circle('حلقة أ', [1 => 1])],
             new SlideShowOptions(secondsPerSlide: null, loop: false),
         ));
@@ -281,7 +306,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_a_file_can_be_made_to_open_as_a_running_show(): void
     {
-        $template = SlideDeckTemplate::open(self::defaultTemplate(3));
+        $template = SlideDeckTemplate::open(self::numbered(3));
         $slides = [self::circle('حلقة أ', [1 => 1])];
 
         $editable = new SlideShowOptions(opensAsShow: false);
@@ -304,7 +329,7 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_a_template_gives_the_same_presentation_every_time(): void
     {
-        $template = SlideDeckTemplate::open(self::defaultTemplate(5));
+        $template = SlideDeckTemplate::open(self::numbered(4));
         $slides = [self::circle('حلقة أ', [1 => 1, 2 => 2]), self::circle('حلقة ب', [1 => 1])];
 
         $first = new Deck($template->render($slides, new SlideShowOptions(secondsPerSlide: 5)));
@@ -313,14 +338,14 @@ class SlideDeckTemplateTest extends TestCase
         $this->assertSame($first->slides(), $second->slides());
         $this->assertSame($first->slide(0), $second->slide(0));
         $this->assertSame($first->part('ppt/presentation.xml'), $second->part('ppt/presentation.xml'));
-        $this->assertSame(5, $template->slots());
+        $this->assertSame(4, $template->slots());
     }
 
     public function test_a_presentation_needs_at_least_one_slide(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        SlideDeckTemplate::open(self::defaultTemplate(3))->render([], new SlideShowOptions);
+        SlideDeckTemplate::open(self::numbered(3))->render([], new SlideShowOptions);
     }
 
     public function test_what_is_not_a_presentation_is_refused(): void
@@ -344,7 +369,7 @@ class SlideDeckTemplateTest extends TestCase
     public function test_a_presentation_without_placeholders_is_refused(): void
     {
         // A finished presentation has nothing left to fill.
-        $finished = $this->temporaryFile(SlideDeckTemplate::open(self::defaultTemplate(1))->render(
+        $finished = $this->temporaryFile(SlideDeckTemplate::open(self::numbered(1))->render(
             [self::circle('حلقة أ', [1 => 1])],
             new SlideShowOptions,
         ));
@@ -359,13 +384,203 @@ class SlideDeckTemplateTest extends TestCase
 
     public function test_a_broken_slide_is_refused(): void
     {
-        $broken = $this->editedTemplate(1, fn (string $xml): string => substr($xml, 0, (int) (strlen($xml) / 2)));
+        $broken = $this->editedTemplate(self::numbered(1), fn (string $xml): string => substr($xml, 0, (int) (strlen($xml) / 2)));
 
         try {
             SlideDeckTemplate::open($broken);
             $this->fail('A presentation with a broken slide was accepted.');
         } catch (InvalidSlideTemplate $exception) {
             $this->assertSame(InvalidSlideTemplate::NOT_A_PRESENTATION, $exception->reason);
+        }
+    }
+
+    public function test_the_default_design_is_a_board_that_holds_a_large_circle(): void
+    {
+        $template = SlideDeckTemplate::open(self::board(), self::CELL);
+
+        $this->assertTrue($template->isBoard());
+        $this->assertSame(0, $template->slots());
+        $this->assertGreaterThanOrEqual(30, $template->itemsPerSlide());
+
+        foreach (['title', 'name', 'value'] as $placeholder) {
+            $this->assertContains($placeholder, $template->placeholders());
+        }
+
+        // Opened without the placeholders of a student, the same slide has no cell to repeat.
+        $this->assertFalse(SlideDeckTemplate::open(self::board())->isBoard());
+    }
+
+    public function test_the_cell_is_repeated_for_every_student_from_the_top_right(): void
+    {
+        $deck = new Deck(SlideDeckTemplate::open(self::board(), self::CELL)->render(
+            [new SlideContent(['title' => 'نقاط حلقة الفرقان'], cells: self::students(7))],
+            new SlideShowOptions,
+        ));
+
+        $names = $deck->named(0, 'cell name');
+        $scores = $deck->named(0, 'cell score');
+
+        $this->assertSame(array_map(fn (int $place): string => "طالب {$place}", range(1, 7)), array_column($names, 'text'));
+        $this->assertSame(['99', '98', '97', '96', '95', '94', '93'], array_column($scores, 'text'));
+        $this->assertContains('نقاط حلقة الفرقان', $deck->paragraphs(0));
+        $this->assertStringNotContainsString('{{', implode(' ', $deck->paragraphs(0)));
+        // The area of the board is not drawn.
+        $this->assertSame([], $deck->named(0, 'cells'));
+
+        // Seven students: two columns, read from right to left, then down.
+        [$first, $second, $third] = $names;
+        $this->assertGreaterThan($second['x'], $first['x']);
+        $this->assertSame($first['y'], $second['y']);
+        $this->assertSame($first['x'], $third['x']);
+        $this->assertGreaterThan($first['y'], $third['y']);
+        // The last row is not full: its cell stands on the right, under the first.
+        $this->assertSame($first['x'], $names[6]['x']);
+
+        // Each score stands on the left of its name, on the same line.
+        foreach ($names as $index => $name) {
+            $this->assertLessThan($name['x'], $scores[$index]['x']);
+            $this->assertSame($name['y'], $scores[$index]['y']);
+        }
+    }
+
+    public function test_the_fewer_the_students_the_larger_their_cells(): void
+    {
+        $original = Deck::fromFile(self::board())->named(0, 'cell name')[0];
+
+        $deck = new Deck(SlideDeckTemplate::open(self::board(), self::CELL)->render([
+            new SlideContent([], cells: self::students(1)),
+            new SlideContent([], cells: self::students(12)),
+            new SlideContent([], cells: self::students(30)),
+        ], new SlideShowOptions));
+
+        $one = $deck->named(0, 'cell name')[0];
+        $twelve = $deck->named(1, 'cell name')[0];
+        $thirty = $deck->named(2, 'cell name')[0];
+
+        $this->assertGreaterThan($original['width'], $one['width']);
+        $this->assertGreaterThan($twelve['width'], $one['width']);
+        $this->assertGreaterThan($thirty['width'], $twelve['width']);
+        // The text grows and shrinks with its cell, and the cell keeps its proportions.
+        $this->assertGreaterThan($original['sizes'][0], $one['sizes'][0]);
+        $this->assertLessThan($original['sizes'][0], $thirty['sizes'][0]);
+        $this->assertEqualsWithDelta($original['width'] / $original['height'], $thirty['width'] / $thirty['height'], 0.01);
+
+        // Every cell stays on the slide, below the title.
+        foreach ([0 => 1, 1 => 12, 2 => 30] as $slide => $count) {
+            $cells = [...$deck->named($slide, 'cell name'), ...$deck->named($slide, 'cell score')];
+
+            $this->assertCount(2 * $count, $cells);
+
+            foreach ($cells as $cell) {
+                $this->assertGreaterThanOrEqual(0, $cell['x']);
+                $this->assertLessThanOrEqual(12192000, $cell['x'] + $cell['width']);
+                $this->assertGreaterThanOrEqual($original['y'], $cell['y']);
+                $this->assertLessThanOrEqual(6858000, $cell['y'] + $cell['height']);
+            }
+        }
+    }
+
+    public function test_a_long_name_is_drawn_smaller_to_fit_its_cell(): void
+    {
+        $cells = self::students(4);
+        $cells[1]['name'] = 'عبد الرحمن بن محمد بن عبد الله الحسيني';
+
+        $deck = new Deck(SlideDeckTemplate::open(self::board(), self::CELL)->render(
+            [new SlideContent([], cells: $cells)],
+            new SlideShowOptions,
+        ));
+
+        $names = $deck->named(0, 'cell name');
+
+        $this->assertLessThan($names[0]['sizes'][0], $names[1]['sizes'][0]);
+        $this->assertSame($names[0]['sizes'][0], $names[2]['sizes'][0]);
+        // Never below six tenths of its size.
+        $this->assertGreaterThanOrEqual((int) floor($names[0]['sizes'][0] * TextFitter::SMALLEST), $names[1]['sizes'][0]);
+    }
+
+    public function test_a_long_title_is_drawn_smaller_to_stay_on_one_line(): void
+    {
+        $template = SlideDeckTemplate::open(self::board(), self::CELL);
+        $original = Deck::fromFile(self::board())->named(0, 'title')[0]['sizes'][0];
+
+        $deck = new Deck($template->render([
+            new SlideContent(['title' => 'نقاط حلقة أ'], cells: self::students(3)),
+            new SlideContent(['title' => 'نقاط حلقة الإمام أبي حنيفة النعمان للحفظ المتقن (1/2)'], cells: self::students(3)),
+        ], new SlideShowOptions));
+
+        $this->assertSame($original, $deck->named(0, 'title')[0]['sizes'][0]);
+        $this->assertLessThan($original, $deck->named(1, 'title')[0]['sizes'][0]);
+        // The shrinking PowerPoint stored in the template is now part of the size.
+        $this->assertStringNotContainsString('fontScale', $deck->slide(1));
+    }
+
+    public function test_every_shape_of_a_board_has_an_id_of_its_own(): void
+    {
+        $deck = new Deck(SlideDeckTemplate::open(self::board(), self::CELL)->render(
+            [new SlideContent([], cells: self::students(20))],
+            new SlideShowOptions,
+        ));
+
+        $ids = array_column($deck->drawn(0), 'id');
+
+        $this->assertCount(2 * 20 + 2, $ids);
+        $this->assertSame($ids, array_values(array_unique($ids)));
+    }
+
+    public function test_more_students_than_a_slide_holds_are_refused(): void
+    {
+        $template = SlideDeckTemplate::open(self::board(), self::CELL);
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $template->render([new SlideContent([], cells: self::students($template->itemsPerSlide() + 1))], new SlideShowOptions);
+    }
+
+    public function test_without_an_area_the_board_takes_the_room_below_its_cell(): void
+    {
+        $original = Deck::fromFile(self::board())->named(0, 'cell name')[0];
+        $template = SlideDeckTemplate::open($this->editedTemplate(self::board(), fn (string $xml): string => (string) preg_replace(
+            '#<p:sp><p:nvSpPr><p:cNvPr id="\d+" name="cells".*?</p:sp>#s',
+            '',
+            $xml,
+        )), self::CELL);
+
+        $this->assertTrue($template->isBoard());
+
+        $deck = new Deck($template->render([new SlideContent([], cells: self::students(12))], new SlideShowOptions));
+
+        $this->assertCount(12, $deck->named(0, 'cell name'));
+
+        foreach ([...$deck->named(0, 'cell name'), ...$deck->named(0, 'cell score')] as $cell) {
+            $this->assertGreaterThanOrEqual($original['y'], $cell['y']);
+            $this->assertLessThanOrEqual(12192000, $cell['x'] + $cell['width']);
+            $this->assertLessThanOrEqual(6858000, $cell['y'] + $cell['height']);
+        }
+    }
+
+    public function test_a_board_without_room_for_its_cell_shows_nobody(): void
+    {
+        // The area shrunk to a sliver: not even one cell fits in it.
+        $sliver = $this->editedTemplate(self::board(), fn (string $xml): string => (string) preg_replace(
+            '#(name="cells".*?<a:ext cx=")\d+(" cy=")\d+#s',
+            '${1}200000${2}200000',
+            $xml,
+        ));
+
+        $this->assertSame(0, SlideDeckTemplate::open($sliver, self::CELL)->itemsPerSlide());
+
+        // A cell that takes its place from the layout instead of standing where it is drawn.
+        $unplaced = $this->editedTemplate(self::board(), fn (string $xml): string => (string) preg_replace(
+            '#(name="cell name".*?)<a:xfrm>.*?</a:xfrm>#s',
+            '$1',
+            $xml,
+        ));
+
+        try {
+            SlideDeckTemplate::open($unplaced, self::CELL);
+            $this->fail('A cell without a place of its own was accepted.');
+        } catch (InvalidSlideTemplate $exception) {
+            $this->assertSame(InvalidSlideTemplate::NO_ROOM, $exception->reason);
         }
     }
 }

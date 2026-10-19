@@ -18,6 +18,8 @@ final readonly class ScopeTotals
         public int $points,
         public int $attended,
         public int $sessions,
+        /** Juz passed in an exam, counted per student (see StudentStanding::$examsPassed). */
+        public int $examsPassed,
     ) {}
 
     /**
@@ -32,6 +34,7 @@ final readonly class ScopeTotals
             points: (int) $standings->sum('points'),
             attended: (int) $standings->sum('attended'),
             sessions: (int) $standings->sum('sessions'),
+            examsPassed: (int) $standings->sum('examsPassed'),
         );
     }
 

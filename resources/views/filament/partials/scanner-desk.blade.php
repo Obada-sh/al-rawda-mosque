@@ -10,12 +10,15 @@
         this.$refs.code.focus()
     },
     keepFocus(event) {
-        // The scanner types digits. If the box lost the cursor (a
-        // click elsewhere on the page), the first digit brings it back.
+        // The scanner types digits. If the box lost the cursor (a click
+        // elsewhere on the desk, a date picked), the first digit brings
+        // it back. A box that cannot be typed in does not keep it; a
+        // window open over the desk (a form) keeps what is typed in it.
         const active = document.activeElement
-        const typing = active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)
+        const onDesk = ! active || active === document.body || this.$root.contains(active)
+        const typing = active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) && ! active.readOnly && ! active.disabled
 
-        if (! typing && /^[0-9]$/.test(event.key)) {
+        if (onDesk && ! typing && /^[0-9]$/.test(event.key)) {
             this.focusBox()
         }
     },

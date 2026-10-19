@@ -39,6 +39,7 @@ final class CourseStandings
                     points: (int) $members->sum('points'),
                     attended: (int) $members->sum('attended'),
                     sessions: (int) $members->sum('sessions'),
+                    examsPassed: (int) $members->sum('examsPassed'),
                 );
             });
     }

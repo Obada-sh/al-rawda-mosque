@@ -385,6 +385,46 @@ class StatisticsTest extends TestCase
         $this->assertSame(0, app(ExamSummaries::class)->for($this->filter())->first()->countOf(ExamGrade::Retake));
     }
 
+    public function test_each_student_counts_the_juz_passed_in_the_period(): void
+    {
+        $this->examine($this->ahmad, 30, '2026-10-02', ExamGrade::Excellent);
+        // The same juz again, for a better grade: still one juz.
+        $this->examine($this->ahmad, 30, '2026-10-04', ExamGrade::Excellent);
+        $this->examine($this->ahmad, 29, '2026-10-03', ExamGrade::Retake);
+        $this->examine($this->ahmad, 28);
+        $this->examine($this->bilal, 30, '2026-10-05', ExamGrade::Acceptable);
+
+        // An exam of خالد that belongs to no course counts in none.
+        $unattached = app(OpenJuzExam::class)->handle(['student_id' => $this->khalid->student_id, 'juz_no' => 30]);
+        app(RecordJuzExamResult::class)->handle($unattached, [
+            'exam_date' => '2026-10-05',
+            'examiner_teacher_id' => $this->yaser->getKey(),
+            'grade' => ExamGrade::Good->value,
+        ]);
+
+        $passed = fn (array $input = []): array => $this->standings($input)
+            ->map(fn (StudentStanding $standing): int => $standing->examsPassed)
+            ->all();
+
+        $this->assertSame(['أحمد' => 1, 'بلال' => 1, 'خالد' => 0], $passed());
+        $this->assertSame(['أحمد' => 1, 'بلال' => 0, 'خالد' => 0], $passed(['until' => '2026-10-04']));
+        $this->assertSame(['أحمد' => 0, 'بلال' => 1, 'خالد' => 0], $passed(['from' => '2026-10-05']));
+
+        // Circles, courses and the whole mosque add them up.
+        $circles = app(CircleStandings::class)->for($this->filter(['course_id' => $this->course->getKey()]))->keyBy('circleName');
+        $this->assertSame([2, 0], [$circles['حلقة أ']->examsPassed, $circles['حلقة ب']->examsPassed]);
+        $this->assertSame(2, app(CourseStandings::class)->for($this->filter())->sole()->examsPassed);
+        $this->assertSame(2, ScopeTotals::of(app(StudentStandings::class)->for($this->filter()))->examsPassed);
+
+        // Ranked by exams, the two who passed a juz share the first place.
+        $this->assertSame(
+            ['1 أحمد', '1 بلال', '3 خالد'],
+            app(StudentRanking::class)->rank(app(StudentStandings::class)->for($this->filter()), RankingCriterion::Exams)
+                ->map(fn (RankedStanding $ranked): string => "{$ranked->place} {$ranked->standing->studentName}")
+                ->all(),
+        );
+    }
+
     public function test_the_filter_accepts_only_a_period_that_ends_after_it_starts(): void
     {
         $filter = ReportFilter::fromInput(['from' => '2026-10-01 00:00:00', 'until' => '2026-10-05 00:00:00', 'course_id' => (string) $this->course->getKey()]);

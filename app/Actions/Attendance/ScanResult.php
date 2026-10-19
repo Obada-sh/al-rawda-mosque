@@ -9,6 +9,8 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Teacher;
 use App\Services\Teachers\TeacherCircles;
+use App\Support\Dates;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -20,6 +22,7 @@ final readonly class ScanResult
     /**
      * @param  Collection<int, Circle>|null  $teacherCircles  for a teacher's card: the active circles of its course the teacher is responsible for
      * @param  Course|null  $teacherCourse  for a teacher's card: the course it belongs to
+     * @param  CarbonInterface|null  $day  the day the attendance is for, when it is not today
      */
     public function __construct(
         public ScanStatus $status,
@@ -28,11 +31,12 @@ final readonly class ScanResult
         public ?Teacher $teacher = null,
         public ?Collection $teacherCircles = null,
         public ?Course $teacherCourse = null,
+        public ?CarbonInterface $day = null,
     ) {}
 
     public function message(): string
     {
-        return $this->status->label();
+        return $this->status->label($this->day === null ? null : Dates::show($this->day));
     }
 
     public function isTeacher(): bool

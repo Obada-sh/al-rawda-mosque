@@ -125,7 +125,7 @@ class BackupTest extends TestCase
     {
         $this->seedReportWeek();
         app(SettingsStore::class)->set(SettingKey::MOSQUE_NAME, 'جامع الروضة');
-        app(LeadersTemplates::class)->replaceWith(resource_path('pptx/leaders-2.pptx'));
+        app(LeadersTemplates::class)->replaceWith(base_path('tests/Fixtures/slides/numbered-3.pptx'));
         $expense = $this->spend(['item_name' => 'تمر', 'notes' => self::AWKWARD]);
 
         $backup = app(CreateBackup::class)->handle();
@@ -178,7 +178,7 @@ class BackupTest extends TestCase
         $this->assertSame(self::AWKWARD, Expense::query()->sole()->notes);
         $this->assertSame('تمر', Expense::query()->sole()->item_name);
         $this->assertSame('جامع الروضة', app(SettingsStore::class)->get(SettingKey::MOSQUE_NAME));
-        $this->assertSame(2, app(LeadersTemplates::class)->customSlots());
+        $this->assertSame(3, app(LeadersTemplates::class)->custom()?->itemsPerSlide());
         $this->assertSame(16, (int) StudentPage::query()->count());
         $this->assertSame(3, Recitation::query()->count());
         $this->assertSame(27, (int) PointTransaction::query()->where('enrollment_id', $this->ahmad->getKey())->sum('points'));

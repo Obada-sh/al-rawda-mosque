@@ -8,9 +8,11 @@ use App\Filament\Resources\Students\Pages\CreateStudent;
 use App\Filament\Resources\Students\Pages\EditStudent;
 use App\Filament\Resources\Students\Pages\ListStudents;
 use App\Filament\Resources\Students\StudentResource;
+use App\Filament\Resources\Teachers\Pages\ManageTeachers;
 use App\Filament\Support\Presenters\StudentPresenter;
 use App\Models\Student;
 use App\Services\Students\StudentPhotos;
+use Filament\Forms\Components\FileUpload;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\Support\Pictures;
@@ -39,6 +41,21 @@ class StudentPhotoPanelTest extends PanelTestCase
         $withPhoto = Student::query()->where('full_name', 'أحمد الحموي')->sole();
         $this->assertNotNull($withPhoto->photo_path);
         Storage::disk(StudentPhotos::DISK)->assertExists($withPhoto->photo_path);
+    }
+
+    public function test_the_photo_is_cut_by_the_admin_to_the_circle_of_the_card(): void
+    {
+        $circleEditor = fn (FileUpload $field): bool => $field->hasImageEditor()
+            && $field->hasCircleCropper()
+            && $field->shouldAutomaticallyOpenImageEditorForAspectRatio()
+            && ! $field->shouldAutomaticallyCropImagesToAspectRatio()
+            && $field->getImageAspectRatio() === '1:1';
+
+        Livewire::test(CreateStudent::class)->assertFormFieldExists('photo', $circleEditor);
+
+        Livewire::test(ManageTeachers::class)
+            ->mountAction('create')
+            ->assertFormFieldExists('photo', $circleEditor);
     }
 
     public function test_a_file_that_is_not_a_picture_is_refused_under_its_field(): void

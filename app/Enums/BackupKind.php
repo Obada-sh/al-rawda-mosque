@@ -22,6 +22,12 @@ enum BackupKind: string
     /** A file the admin brought back from outside (a USB stick). */
     case Uploaded = 'uploaded';
 
+    /**
+     * Taken every evening and put in the Google Drive folder (see
+     * CopyBackupToDrive). Only those of the last days are kept, here and there.
+     */
+    case Evening = 'evening';
+
     public function label(): string
     {
         return match ($this) {
@@ -30,6 +36,7 @@ enum BackupKind: string
             self::BeforeRestore => 'قبل استعادة',
             self::BeforeUpdate => 'قبل تحديث',
             self::Uploaded => 'مرفوعة',
+            self::Evening => 'مسائية (Google Drive)',
         };
     }
 }

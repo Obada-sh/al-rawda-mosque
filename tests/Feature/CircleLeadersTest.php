@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Enrollments\UpdateEnrollmentDates;
+use App\Enums\ExamGrade;
 use App\Enums\RankingCriterion;
 use App\Models\Enrollment;
 use App\Models\Student;
@@ -17,9 +18,10 @@ use Tests\Concerns\SeedsReportWeek;
 use Tests\TestCase;
 
 /**
- * The best students of each circle, on the week described in
- * SeedsReportWeek: أحمد 12 new pages and 27 points, بلال 4 and 6 (both in
- * حلقة أ), خالد no page and 9 points (حلقة ب).
+ * The students of each circle, best first, on the week described in
+ * SeedsReportWeek: أحمد 12 new pages, 27 points and 3 sessions of 3, بلال
+ * 4 pages, 6 points and 1 session of 3 (both in حلقة أ), خالد no page, 9
+ * points and 2 sessions of 3 (حلقة ب).
  */
 class CircleLeadersTest extends TestCase
 {
@@ -41,7 +43,7 @@ class CircleLeadersTest extends TestCase
      * @param  array<string, mixed>  $period
      * @return array<string, list<array{int, string, int}>>
      */
-    private function leaders(RankingCriterion $criterion, int $top = 3, array $period = []): array
+    private function leaders(RankingCriterion $criterion, ?int $top = 3, array $period = []): array
     {
         $filter = ReportFilter::fromInput(['course_id' => $this->course->getKey()] + $period);
 
@@ -187,11 +189,59 @@ class CircleLeadersTest extends TestCase
         $this->assertSame(['حلقة أ'], array_keys($this->leaders(RankingCriterion::NewPages)));
     }
 
-    public function test_leaders_are_ranked_by_pages_or_points_only(): void
+    public function test_without_a_number_every_student_of_the_circle_is_listed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->join('سامي', 'circleA');
 
-        $this->leaders(RankingCriterion::Attendance);
+        // سامي did nothing yet: he is listed last. خالد recited no page, but his circle has nobody to show.
+        $this->assertSame([
+            'حلقة أ' => [[1, 'أحمد', 12], [2, 'بلال', 4], [3, 'سامي', 0]],
+        ], $this->leaders(RankingCriterion::NewPages, top: null));
+
+        // A student below zero is listed too, after those with nothing.
+        $this->award($this->bilal, -10, '2026-10-07');
+        $this->assertSame(
+            [[1, 'أحمد', 27], [2, 'سامي', 0], [3, 'بلال', -4]],
+            $this->leaders(RankingCriterion::Points, top: null)['حلقة أ'],
+        );
+    }
+
+    public function test_one_circle_can_be_asked_for_alone(): void
+    {
+        $filter = ReportFilter::fromInput(['course_id' => $this->course->getKey(), 'circle_id' => $this->circleB->getKey()]);
+
+        $circles = app(CircleLeaders::class)->of($filter, RankingCriterion::Points);
+
+        $this->assertSame(['حلقة ب'], $circles->pluck('circleName')->all());
+    }
+
+    public function test_attendance_is_ranked_by_its_rate_and_shows_the_sessions_attended(): void
+    {
+        // سامي joined on the 4th and came to the only session held since.
+        $sami = $this->enroll(Student::factory()->create(['full_name' => 'سامي']), $this->course, $this->circleA, '2026-10-04');
+        $this->attend($sami, '2026-10-05');
+
+        // أحمد and سامي came to all their sessions and share the first place; أحمد has more points.
+        $this->assertSame([
+            'حلقة أ' => [[1, 'أحمد', 3], [1, 'سامي', 1], [3, 'بلال', 1]],
+            'حلقة ب' => [[1, 'خالد', 2]],
+        ], $this->leaders(RankingCriterion::Attendance, top: null));
+    }
+
+    public function test_exams_count_the_juz_passed_in_the_period(): void
+    {
+        $this->examine($this->ahmad, 30, '2026-10-02', ExamGrade::Excellent);
+        $this->examine($this->ahmad, 29, '2026-10-03', ExamGrade::Retake);
+        $this->examine($this->khalid, 30, '2026-10-04');
+        $this->examine($this->khalid, 29);
+
+        // A retake is not a pass, nor is an exam still waiting; بلال passed nothing.
+        $this->assertSame([
+            'حلقة أ' => [[1, 'أحمد', 1]],
+            'حلقة ب' => [[1, 'خالد', 1]],
+        ], $this->leaders(RankingCriterion::Exams));
+
+        $this->assertSame([], $this->leaders(RankingCriterion::Exams, period: ['from' => '2026-10-05']));
     }
 
     public function test_a_leaderboard_needs_room_for_at_least_one_student(): void

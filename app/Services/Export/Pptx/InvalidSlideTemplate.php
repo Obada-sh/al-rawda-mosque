@@ -16,6 +16,8 @@ final class InvalidSlideTemplate extends RuntimeException
 
     public const NO_PLACEHOLDERS = 'no_placeholders';
 
+    public const NO_ROOM = 'no_room';
+
     private function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -29,6 +31,11 @@ final class InvalidSlideTemplate extends RuntimeException
     public static function tooLarge(): self
     {
         return new self(self::TOO_LARGE, 'The presentation is too large to be a template.');
+    }
+
+    public static function noRoom(): self
+    {
+        return new self(self::NO_ROOM, 'The cell of the board has no place of its own on the slide, or no room to be repeated in.');
     }
 
     public static function noPlaceholders(): self

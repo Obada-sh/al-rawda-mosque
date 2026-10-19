@@ -9,17 +9,23 @@ use Illuminate\Contracts\Filesystem\Filesystem;
 use InvalidArgumentException;
 
 /**
- * The slide the leaders of each circle are written on.
+ * The slide the students of each circle are written on.
  *
- * The system comes with a default design for every number of leaders.
- * The admin can replace it by a design of their own: a PowerPoint file
- * with one slide that carries placeholders such as {{circle}} and
- * {{name1}}. Their file is kept outside the public folder.
+ * The system comes with a default design: a board on which one cell (a
+ * name and a number) is repeated for every student of the circle, as
+ * large as the slide allows. The admin can replace it by a design of
+ * their own: a PowerPoint file with one slide that carries placeholders
+ * (see LeadersSlides), either such a cell or numbered places ({{name1}},
+ * {{name2}}...). Their file is kept outside the public folder.
  */
 final class LeadersTemplates
 {
-    /** The default design exists for 1 up to this many leaders on a slide. */
-    public const MAX_LEADERS = 10;
+    /**
+     * The placeholders of one student. Written once, without a number,
+     * they make the cell of a board; with a number ({{name1}}) they are a
+     * place of their own.
+     */
+    public const STUDENT_PLACEHOLDERS = ['place', 'name', 'score', 'value', 'unit'];
 
     /** The disk and the folder of the admin's own design; the backup takes this folder with it. */
     public const DISK = 'local';
@@ -31,14 +37,24 @@ final class LeadersTemplates
     public function __construct(private readonly Storage $storage) {}
 
     /**
+     * Opens a file as a template of the leaders' slides.
+     *
+     * @throws InvalidSlideTemplate when the file cannot serve as one
+     */
+    public static function open(string $path): SlideDeckTemplate
+    {
+        return SlideDeckTemplate::open($path, self::STUDENT_PLACEHOLDERS);
+    }
+
+    /**
      * The template in use: the admin's own design when there is one,
-     * otherwise the default design for that many leaders.
+     * otherwise the default design.
      *
      * @throws InvalidSlideTemplate when the admin's file can no longer be read
      */
-    public function for(int $leaders): SlideDeckTemplate
+    public function current(): SlideDeckTemplate
     {
-        return SlideDeckTemplate::open($this->hasCustom() ? $this->customPath() : $this->defaultPath($leaders));
+        return self::open($this->hasCustom() ? $this->customPath() : $this->defaultPath());
     }
 
     public function hasCustom(): bool
@@ -47,17 +63,17 @@ final class LeadersTemplates
     }
 
     /**
-     * How many leaders the admin's own design has room for; null when the
-     * default design is in use (or their file can no longer be read).
+     * The admin's own design; null when the default design is in use, or
+     * their file can no longer be used.
      */
-    public function customSlots(): ?int
+    public function custom(): ?SlideDeckTemplate
     {
         if (! $this->hasCustom()) {
             return null;
         }
 
         try {
-            return SlideDeckTemplate::open($this->customPath())->slots();
+            return self::open($this->customPath());
         } catch (InvalidSlideTemplate) {
             return null;
         }
@@ -72,15 +88,11 @@ final class LeadersTemplates
     }
 
     /**
-     * The file of the default design for a number of leaders.
+     * The file of the default design.
      */
-    public function defaultPath(int $leaders): string
+    public function defaultPath(): string
     {
-        if ($leaders < 1 || $leaders > self::MAX_LEADERS) {
-            throw new InvalidArgumentException('There is a default design for 1 to '.self::MAX_LEADERS.' leaders only.');
-        }
-
-        return resource_path("pptx/leaders-{$leaders}.pptx");
+        return resource_path('pptx/leaders.pptx');
     }
 
     /**

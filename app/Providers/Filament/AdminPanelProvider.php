@@ -12,14 +12,19 @@ use App\Http\Controllers\BackupDownloadController;
 use App\Http\Controllers\CircleLogoController;
 use App\Http\Controllers\CircleSheetController;
 use App\Http\Controllers\MarketItemPictureController;
+use App\Http\Controllers\MosqueSheetController;
 use App\Http\Controllers\StudentFileController;
 use App\Http\Controllers\StudentPhotoController;
 use App\Http\Controllers\TeacherCardController;
 use App\Http\Controllers\TeacherPhotoController;
+use App\Http\Controllers\TickController;
 use App\Http\Middleware\RedirectToSetupWhenNoAdmin;
 use App\Http\Middleware\RemindAdmin;
 use App\Http\Middleware\TakeDailyBackup;
+use App\Http\Middleware\TakeEveningDriveCopy;
+use App\Services\Backup\DriveCopySetup;
 use App\Support\Brand;
+use Filament\Facades\Filament;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -77,6 +82,10 @@ class AdminPanelProvider extends PanelProvider
             // The demo says that it is the demo; the real system shows nothing here.
             ->renderHook(PanelsRenderHook::TOPBAR_LOGO_AFTER, fn (DemoNotice $notice): ?View => $notice->badge())
             ->renderHook(PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE, fn (DemoNotice $notice): ?View => $notice->signIn())
+            // An open page of the signed-in admin keeps the evening copy for Google Drive on time.
+            ->renderHook(PanelsRenderHook::BODY_END, fn (DriveCopySetup $driveCopy): ?View => Filament::auth()->check() && config('rawda.backups.drive') && $driveCopy->settings()->isOn()
+                ? view('filament.partials.tick')
+                : null)
             ->maxContentWidth(Width::Full)
             ->sidebarCollapsibleOnDesktop()
             ->navigationGroups(PanelGroup::class)
@@ -98,6 +107,9 @@ class AdminPanelProvider extends PanelProvider
                 Route::get('print/students/{student}', StudentFileController::class)->name('print.student-file');
                 Route::get('print/circle-students', [CircleSheetController::class, 'students'])->name('print.circle-students');
                 Route::get('print/circle-codes', [CircleSheetController::class, 'codes'])->name('print.circle-codes');
+                Route::get('print/mosque-students', MosqueSheetController::class)->name('print.mosque-students');
+                // Called by an open page every few minutes: what is due at a time of day happens then.
+                Route::get('tick', TickController::class)->name('tick');
             })
             ->middleware([
                 EncryptCookies::class,
@@ -115,6 +127,7 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
                 RemindAdmin::class,
                 TakeDailyBackup::class,
+                TakeEveningDriveCopy::class,
             ]);
     }
 }

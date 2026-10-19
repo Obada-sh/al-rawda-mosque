@@ -32,8 +32,9 @@ abstract class TestCase extends BaseTestCase
         }
 
         $config->set('rawda.backups.path', storage_path('framework/testing/backups'));
-        // No backup is taken behind the back of a test that opens a page.
+        // No backup is taken, nor put in a Drive folder, behind the back of a test that opens a page.
         $config->set('rawda.backups.automatic', false);
+        $config->set('rawda.backups.drive', false);
 
         return $app;
     }

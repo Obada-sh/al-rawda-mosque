@@ -14,6 +14,7 @@ enum RankingCriterion: string
     case Points = 'points';
     case NewPages = 'pages';
     case Attendance = 'attendance';
+    case Exams = 'exams';
 
     public function label(): string
     {
@@ -21,6 +22,7 @@ enum RankingCriterion: string
             self::Points => 'النقاط',
             self::NewPages => 'الصفحات الجديدة',
             self::Attendance => 'نسبة الحضور',
+            self::Exams => 'السبر',
         };
     }
 }

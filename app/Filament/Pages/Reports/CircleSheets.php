@@ -19,10 +19,12 @@ use UnitEnum;
 
 /**
  * The sheets of the circles, printed on A4 under the mosque's logo: for a
- * circle of a course, the list of its students (name, phone, guardian's
- * phone and the pages memorized in the course), or their attendance codes
- * (name and QR). One circle from its row, or every circle of a course from
- * the top of the page.
+ * circle of a course, the list of its students, with the columns the
+ * admin ticks (phones, the pages memorized and which, the juz exams, the
+ * attendance) for the course or for every course of each student; or
+ * their attendance codes (name and QR). One circle from its row, or every
+ * circle of a course from the top of the page; and, from the top too, one
+ * list of every student of the mosque (or of one course) by name.
  */
 class CircleSheets extends Page implements HasTable
 {
@@ -43,6 +45,7 @@ class CircleSheets extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            DocumentActions::mosqueStudents(),
             DocumentActions::courseStudents(),
             DocumentActions::courseCodes(),
         ];

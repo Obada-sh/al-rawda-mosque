@@ -14,6 +14,7 @@ use App\Models\Attendance;
 use App\Models\Course;
 use App\Models\CourseSession;
 use App\Models\PointTransaction;
+use App\Support\Dates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\BuildsDomain;
 use Tests\TestCase;
@@ -214,5 +215,69 @@ class ScanAttendanceTest extends TestCase
         }
 
         $this->assertSame(0, Attendance::query()->count());
+    }
+
+    public function test_a_card_can_be_recorded_for_an_earlier_day(): void
+    {
+        $course = Course::factory()->meetingOn([Weekday::Monday, Weekday::Wednesday])->create(['points_per_attendance' => 2]);
+        $enrollment = $this->enroll(course: $course);
+        $monday = Dates::parse('2026-10-05');
+
+        $result = app(RecordScanAttendance::class)->handle($enrollment->card_code, day: $monday);
+
+        $this->assertSame(ScanStatus::Recorded, $result->status);
+        $this->assertSame('تم تسجيل الحضور ليوم 05/10/2026', $result->message());
+
+        // The attendance and its points are Monday's; the card was read today.
+        $attendance = Attendance::query()->sole();
+        $this->assertSame('2026-10-05', $attendance->session->session_date->toDateString());
+        $this->assertSame('2026-10-07 17:00:00', $attendance->scanned_at->toDateTimeString());
+        $this->assertSame(AttendanceMethod::Qr, $attendance->method);
+        $this->assertSame('2026-10-05', PointTransaction::query()->sole()->occurred_on->toDateString());
+
+        $again = app(RecordScanAttendance::class)->handle($enrollment->card_code, day: $monday);
+        $this->assertSame(ScanStatus::AlreadyRecorded, $again->status);
+        $this->assertSame('الحضور مسجَّل مسبقاً يوم 05/10/2026', $again->message());
+
+        // Today is another day: the card is recorded again, for today, in the words of today.
+        $today = $this->scan($enrollment->card_code);
+        $this->assertSame('تم تسجيل الحضور', $today->message());
+        $this->assertSame(2, Attendance::query()->count());
+    }
+
+    public function test_an_earlier_day_follows_the_rules_of_its_own_date(): void
+    {
+        $course = Course::factory()->meetingOn([Weekday::Monday, Weekday::Wednesday])->create(['start_date' => '2026-09-01']);
+        $late = $this->enroll(course: $course, enrolledOn: '2026-10-05');
+        $left = $this->enroll(course: $course, enrolledOn: '2026-09-01');
+        app(UpdateEnrollmentDates::class)->handle($left, ['enrolled_on' => '2026-09-01', 'left_on' => '2026-10-05']);
+
+        $scan = fn ($enrollment, string $day): ScanResult => app(RecordScanAttendance::class)->handle($enrollment->card_code, day: Dates::parse($day));
+
+        // Tuesday is not a class day; a day before the course or before the student joined is refused.
+        $tuesday = $scan($late, '2026-10-06');
+        $this->assertSame(ScanStatus::NotScheduledDay, $tuesday->status);
+        $this->assertSame('يوم 06/10/2026 ليس يوم دوام لهذه الدورة', $tuesday->message());
+        $this->assertSame(ScanStatus::CourseNotRunning, $scan($late, '2026-08-31')->status);
+        $this->assertSame(ScanStatus::BeforeEnrollment, $scan($late, '2026-09-28')->status);
+        $this->assertSame('يوم 28/09/2026 قبل تسجيل الطالب في الدورة', $scan($late, '2026-09-28')->message());
+
+        // A student who left is still recorded for a day he was in the course.
+        $this->assertSame(ScanStatus::Recorded, $scan($left, '2026-10-05')->status);
+        $this->assertSame(ScanStatus::InactiveEnrollment, $this->scan($left->card_code)->status);
+
+        $this->assertSame(['2026-10-05'], CourseSession::query()->pluck('session_date')->map->toDateString()->all());
+    }
+
+    public function test_an_exceptional_session_is_opened_on_the_earlier_day_of_the_card(): void
+    {
+        $course = Course::factory()->meetingOn([Weekday::Friday])->create();
+        $enrollment = $this->enroll(course: $course);
+
+        $result = app(ScanIntoExceptionalSession::class)->handle($enrollment->card_code, day: Dates::parse('2026-10-05'));
+
+        $this->assertSame(ScanStatus::Recorded, $result->status);
+        $this->assertSame('2026-10-05', CourseSession::query()->sole()->session_date->toDateString());
+        $this->assertSame('2026-10-05', Attendance::query()->sole()->session->session_date->toDateString());
     }
 }

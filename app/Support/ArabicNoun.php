@@ -33,6 +33,23 @@ final readonly class ArabicNoun
         return new self('نقطة', 'نقطتان', 'نقاط', 'نقطة', 'نقطة واحدة');
     }
 
+    public static function student(): self
+    {
+        return new self('طالب', 'طالبان', 'طلاب', 'طالباً', 'طالب واحد');
+    }
+
+    /** Days of attendance: "حضر 12 يوماً". */
+    public static function day(): self
+    {
+        return new self('يوم', 'يومان', 'أيام', 'يوماً', 'يوم واحد');
+    }
+
+    /** Juz of the Quran: "سبر 3 أجزاء". */
+    public static function juz(): self
+    {
+        return new self('جزء', 'جزءان', 'أجزاء', 'جزءاً', 'جزء واحد');
+    }
+
     public static function course(): self
     {
         return new self('دورة', 'دورتان', 'دورات', 'دورة', 'دورة واحدة');
@@ -46,6 +63,12 @@ final readonly class ArabicNoun
     public static function year(): self
     {
         return new self('سنة', 'سنتان', 'سنوات', 'سنة', 'سنة واحدة');
+    }
+
+    /** Copies of a backup: "حُذفت 3 نسخ". */
+    public static function backupCopy(): self
+    {
+        return new self('نسخة', 'نسختان', 'نسخ', 'نسخة', 'نسخة واحدة');
     }
 
     /**

@@ -291,6 +291,50 @@ body {
     color: var(--muted);
 }
 
+/* ---------- The list of a circle's students ---------- */
+
+/* With every column ticked the table still fits the width of the page: its headings may take two lines. */
+.sheet-table thead th {
+    white-space: normal;
+    vertical-align: bottom;
+}
+
+.sheet-table td {
+    vertical-align: top;
+}
+
+.sheet-table__name {
+    min-width: 30mm;
+    font-weight: 600;
+}
+
+.sheet-table__phone {
+    white-space: nowrap;
+}
+
+.sheet-table__circle {
+    font-size: 9pt;
+}
+
+.sheet-table__pages,
+.sheet-table__exams {
+    font-size: 9pt;
+    line-height: 1.5;
+}
+
+.sheet-table__detail {
+    display: block;
+    font-size: 8.5pt;
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.sheet-note {
+    margin: 2mm 0 0;
+    font-size: 8.5pt;
+    color: var(--muted);
+}
+
 /* ---------- The attendance codes: 3 × 5 on a page ---------- */
 
 .codes {

@@ -76,7 +76,7 @@ php vendor\phpunit\phpunit\phpunit --filter test_a_student_is_enrolled_in_the_ci
 What to know about them:
 
 - **They run on real MySQL** (`phpunit.xml` sets `DB_DATABASE=rawda_testing`), with the user and password of `.env`. `Tests\TestCase` refuses any database whose name does not end with `_testing`, redirects backups to `storage/framework/testing/backups`, turns the automatic backup off and fakes the disk of uploaded files. A test cannot touch real data.
-- `tests/Unit` needs no database: `Money`, `Ranking`, `QuranPages`, `ArabicNoun`, the slide template, the backup file format.
+- `tests/Unit` needs no database: `Money`, `Ranking`, `QuranPages`, `ArabicNoun`, the slide template and the layout of its board, the backup file format. `tests/Fixtures/slides` holds designs with numbered places, the kind of slide the admin's older designs have.
 - Tests that need a picture take it from `Tests\Support\Pictures`, which holds real PNG bytes: `UploadedFile::fake()->image()` needs PHP's image extension, and the tests must not.
 - `tests/Feature` tests the **actions**: one file per area (`EnrollmentTest`, `RecitationTest`, `JuzExamTest`, `BackupTest`, ...).
 - `tests/Feature/Panel` drives the **screens** through Livewire as the signed-in admin, on a fixed date (`PanelTestCase` travels to Wednesday 2026-10-07 17:00). These tests prove that a screen really goes through its action and shows errors where it should.
@@ -89,6 +89,7 @@ Conventions used in the tests:
 - A broken rule is asserted by its key: `$this->assertViolates('enrollment.duplicate', fn () => $this->enroll($student, $course));`
 - Bad input is asserted with `$this->expectException(ValidationException::class);`
 - Notifications to the admin are asserted on `$this->adminNotifier` (a `RecordingAdminNotifier` bound in place of the panel's notifier).
+- The base `TestCase` turns off what pages would do behind a test's back (`rawda.backups.automatic`, `rawda.backups.drive`); a test that wants it turns it on. The "Google Drive folder" of `DriveCopyTest` and `DriveCopyPanelTest` is a fresh folder of the system's temporary files: the system refuses a Drive folder inside the project.
 
 **Run the whole suite before every push.** The mosque laptop pulls what you push.
 
@@ -122,7 +123,7 @@ Smaller recipes:
 | a console command | `app/Console/Commands`; it is discovered automatically |
 | a file the system keeps (a picture, a template) | a service that owns one folder of the private disk (see `Services\Students\StudentPhotos`); that folder added to `Services\Backup\KeptFiles` so backups carry it; `Http\Requests\Rules\Picture` if it is a picture; a route in `AdminPanelProvider::authenticatedRoutes()` if a browser must show it |
 | something printed on the attendance card | a field of `Actions\Cards\AttendanceCard`, filled by `PrepareAttendanceCards` and `PrepareTeacherCards`, drawn at its place of the PSD in `resources/views/cards/badge.blade.php` (the fixed part is `public/img/card/background.png`) |
-| the mosque's logo | replace `public/img/logo.png` (and `favicon.png`), then run `node resources/pptx/build-default-templates.js` for the slides; the card's copy is inside `public/img/card/background.png` |
+| the mosque's logo | replace `public/img/logo.png` (and `favicon.png`), and the picture of the logo on the slide of `resources/pptx/leaders.pptx` in PowerPoint; the card's copy is inside `public/img/card/background.png` |
 
 A new table needs nothing for backups: `DatabaseDumper` writes every table it finds.
 

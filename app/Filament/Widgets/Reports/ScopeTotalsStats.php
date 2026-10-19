@@ -20,6 +20,9 @@ class ScopeTotalsStats extends StatsOverviewWidget
 
     protected static bool $isLazy = false;
 
+    /** Five figures side by side on a wide screen, three on a narrower one. */
+    protected int|array|null $columns = ['@xl' => 3, '@4xl' => 5, '!@lg' => 5];
+
     protected function getStats(): array
     {
         $filter = $this->reportFilter();
@@ -43,6 +46,10 @@ class ScopeTotalsStats extends StatsOverviewWidget
             Stat::make('صفحات جديدة', number_format($totals->newPages))
                 ->description('من '.number_format($totals->recitedPages).' صفحة مسمَّعة')
                 ->descriptionIcon(Heroicon::OutlinedBookOpen)
+                ->color('primary'),
+            Stat::make('السبر', number_format($totals->examsPassed))
+                ->description('أجزاء نجح الطلاب في سبرها')
+                ->descriptionIcon(Heroicon::OutlinedAcademicCap)
                 ->color('primary'),
             Stat::make('النقاط', number_format($totals->points))
                 ->description('المتوسط للطالب: '.(ReportPresenter::decimal($totals->averagePoints()) ?? '—'))

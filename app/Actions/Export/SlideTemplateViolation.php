@@ -16,6 +16,8 @@ final class SlideTemplateViolation
 
     public const NO_PLACEHOLDERS = 'slide_template.no_placeholders';
 
+    public const NO_ROOM = 'slide_template.no_room';
+
     public const NO_SLOTS = 'slide_template.no_slots';
 
     public static function from(InvalidSlideTemplate $exception): BusinessRuleViolation
@@ -27,8 +29,9 @@ final class SlideTemplateViolation
             ),
             InvalidSlideTemplate::NO_PLACEHOLDERS => BusinessRuleViolation::because(
                 self::NO_PLACEHOLDERS,
-                'لا توجد في القالب شريحة فيها خانات للتعبئة مثل {{circle}} و {{name1}}.',
+                'لا توجد في القالب شريحة فيها خانات للتعبئة مثل {{title}} و {{name}}.',
             ),
+            InvalidSlideTemplate::NO_ROOM => self::withoutRoom(),
             default => BusinessRuleViolation::because(
                 self::NOT_A_PRESENTATION,
                 'الملف ليس عرض PowerPoint صالحاً بصيغة ‎.pptx.',
@@ -37,14 +40,26 @@ final class SlideTemplateViolation
     }
 
     /**
-     * A template that names no leader ({{name1}}, {{score1}}...) would
+     * A template that names no student ({{name}}, or {{name1}}...) would
      * give slides without any student on them.
      */
-    public static function withoutSlots(): BusinessRuleViolation
+    public static function withoutStudents(): BusinessRuleViolation
     {
         return BusinessRuleViolation::because(
             self::NO_SLOTS,
-            'القالب لا يحتوي على خانات الأوائل مثل {{name1}} و {{score1}}.',
+            'القالب لا يحتوي على خانة الطالب {{name}}، ولا على أماكن مرقّمة مثل {{name1}} و {{name2}}.',
+        );
+    }
+
+    /**
+     * The cell of a board must stand on the slide by itself, and fit at
+     * least once in the area it is repeated in.
+     */
+    public static function withoutRoom(): BusinessRuleViolation
+    {
+        return BusinessRuleViolation::because(
+            self::NO_ROOM,
+            'خانة الطالب في القالب أكبر من المساحة التي تُكرَّر فيها، أو ليس لها مكان واضح على الشريحة.',
         );
     }
 }

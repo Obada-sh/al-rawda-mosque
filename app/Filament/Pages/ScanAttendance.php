@@ -9,17 +9,22 @@ use App\Enums\AttendanceMethod;
 use App\Enums\ScanStatus;
 use App\Filament\Enums\PanelGroup;
 use App\Filament\Support\Attempt;
+use App\Filament\Support\Attendance\BulkAttendanceAction;
 use App\Filament\Support\Presenters\StudentPresenter;
 use App\Filament\Support\Presenters\TeacherPresenter;
+use App\Http\Requests\Attendance\ScanDayRequest;
 use App\Models\Attendance;
 use App\Models\TeacherAttendance;
 use App\Services\Statistics\DashboardFigures;
 use App\Support\Dates;
 use BackedEnum;
 use Carbon\CarbonInterface;
+use Filament\Forms\Components\DatePicker;
 use Filament\Pages\Page;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 use UnitEnum;
 
 /**
@@ -27,7 +32,10 @@ use UnitEnum;
  * presses Enter, exactly like a keyboard, so this screen is one text box
  * that is always ready, and a large coloured answer for each card.
  *
- * The same box takes the students' cards and the teachers'.
+ * The same box takes the students' cards and the teachers'. The cards are
+ * recorded for today, or for the earlier day the desk is set to (cards
+ * gathered on paper, a day the computer was off); the desk says so in
+ * large letters until it is set back to today.
  */
 class ScanAttendance extends Page
 {
@@ -49,6 +57,9 @@ class ScanAttendance extends Page
 
     public string $cardCode = '';
 
+    /** The day the cards are recorded for (Y-m-d): today, unless the admin chose an earlier day. */
+    public ?string $day = null;
+
     /**
      * What the last scanned card led to (null until the first scan).
      *
@@ -59,11 +70,45 @@ class ScanAttendance extends Page
     public int $sequence = 0;
 
     /**
-     * The card that was just refused because today is not a class day of
-     * its course. While it is set, the screen offers to open an
-     * exceptional session for it.
+     * The card that was just refused because its day is not a class day of
+     * its course, and that day (Y-m-d). While they are set, the screen
+     * offers to open an exceptional session for it.
      */
     public ?string $refusedCard = null;
+
+    public ?string $refusedDay = null;
+
+    public function mount(): void
+    {
+        $this->day = Dates::today()->toDateString();
+    }
+
+    /**
+     * Many students at once: ticked by name, or their card numbers typed
+     * or scanned into one box.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            BulkAttendanceAction::make(),
+        ];
+    }
+
+    public function dayForm(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                DatePicker::make('day')
+                    ->label('تاريخ الحضور')
+                    ->maxDate(fn () => Dates::today())
+                    ->helperText('اليوم تلقائياً. غيّره لتسجيل بطاقات يوم سابق، ثم أعده إلى اليوم.')
+                    ->live()
+                    ->afterStateUpdated(function (): void {
+                        $this->refusedCard = null;
+                        $this->dispatch('scan-day-changed');
+                    }),
+            ]);
+    }
 
     public function scan(ScanCard $scanCard): void
     {
@@ -74,44 +119,124 @@ class ScanAttendance extends Page
 
         $cardCode = $this->cardCode;
         $this->cardCode = '';
+        $day = $this->checkedDay($this->day);
 
-        $this->show($scanCard->handle($cardCode), $cardCode);
+        if ($day !== null) {
+            $this->show($scanCard->handle($cardCode, day: $day), $cardCode, $day);
+        }
     }
 
     /**
-     * Opens today's session for the course of the refused card (for a
-     * teacher: of their courses), although today is not one of its class
-     * days, and records the attendance.
+     * Opens the session of the refused card's day for its course (for a
+     * teacher: of their card's course), although that day is not one of
+     * its class days, and records the attendance.
      */
     public function openExceptionalSession(ScanIntoExceptionalSession $scanIntoExceptionalSession): void
     {
-        if ($this->refusedCard === null) {
+        $cardCode = $this->refusedCard;
+
+        if ($cardCode === null) {
             return;
         }
 
-        $cardCode = $this->refusedCard;
-        $outcome = Attempt::button(fn (): ScanResult => $scanIntoExceptionalSession->handle($cardCode));
+        $day = $this->checkedDay($this->refusedDay);
+
+        if ($day === null) {
+            return;
+        }
+
+        $outcome = Attempt::button(fn (): ScanResult => $scanIntoExceptionalSession->handle($cardCode, day: $day));
 
         if ($outcome !== null) {
-            $this->show($outcome, $cardCode);
+            $this->show($outcome, $cardCode, $day);
         }
     }
 
-    private function show(ScanResult $outcome, string $cardCode): void
+    public function backToToday(): void
     {
-        $this->refusedCard = $outcome->status === ScanStatus::NotScheduledDay ? $cardCode : null;
-        $this->sequence++;
-        $this->result = [
-            'tone' => $this->tone($outcome),
-            'message' => $outcome->message(),
-            'teacher' => $outcome->isTeacher(),
-            'name' => $outcome->name(),
+        $this->day = Dates::today()->toDateString();
+        $this->refusedCard = null;
+        $this->dispatch('scan-day-changed');
+    }
+
+    /**
+     * The earlier day the desk records the cards for, as shown; null while
+     * it records them for today (or the chosen day cannot be read).
+     */
+    public function anotherDay(): ?string
+    {
+        try {
+            $day = Dates::parse(ScanDayRequest::validateData(['day' => $this->day])['day']);
+        } catch (ValidationException) {
+            return null;
+        }
+
+        return $day->isSameDay(Dates::today()) ? null : Dates::show($day);
+    }
+
+    /**
+     * The button that opens an exceptional session says on which day.
+     */
+    public function exceptionalSessionLabel(): string
+    {
+        try {
+            $day = Dates::parse(ScanDayRequest::validateData(['day' => $this->refusedDay])['day']);
+        } catch (ValidationException) {
+            $day = Dates::today();
+        }
+
+        return $day->isSameDay(Dates::today())
+            ? 'فتح جلسة استثنائية اليوم وتسجيل الحضور'
+            : 'فتح جلسة استثنائية يوم '.Dates::show($day).' وتسجيل الحضور';
+    }
+
+    /**
+     * A day of the desk, checked; null (and the reason shown) when it is
+     * not one the cards can be recorded for.
+     */
+    private function checkedDay(?string $day): ?CarbonInterface
+    {
+        try {
+            return Dates::parse(ScanDayRequest::validateData(['day' => $day])['day']);
+        } catch (ValidationException $exception) {
+            $this->refusedCard = null;
+            $this->answer('danger', (string) collect($exception->errors())->flatten()->first());
+
+            return null;
+        }
+    }
+
+    private function show(ScanResult $outcome, string $cardCode, CarbonInterface $day): void
+    {
+        $refused = $outcome->status === ScanStatus::NotScheduledDay;
+        $this->refusedCard = $refused ? $cardCode : null;
+        $this->refusedDay = $refused ? $day->toDateString() : null;
+
+        $this->answer(
+            tone: $this->tone($outcome),
+            message: $outcome->message(),
+            teacher: $outcome->isTeacher(),
+            name: $outcome->name(),
             // The face of the card's owner, when they have a photo.
-            'photo' => $outcome->isTeacher()
+            photo: $outcome->isTeacher()
                 ? TeacherPresenter::photoUrl($outcome->teacher)
                 : StudentPresenter::photoUrl($outcome->enrollment?->student),
-            'circle' => $outcome->circleName(),
-            'course' => $outcome->courseName(),
+            circle: $outcome->circleName(),
+            course: $outcome->courseName(),
+        );
+    }
+
+    private function answer(string $tone, string $message, bool $teacher = false, ?string $name = null, ?string $photo = null, ?string $circle = null, ?string $course = null): void
+    {
+        $this->sequence++;
+        $this->result = [
+            'tone' => $tone,
+            'message' => $message,
+            'teacher' => $teacher,
+            'name' => $name,
+            'photo' => $photo,
+            'circle' => $circle,
+            'course' => $course,
             'sequence' => $this->sequence,
         ];
 
@@ -139,14 +264,14 @@ class ScanAttendance extends Page
      * A teacher's card counts in each of their courses, but was scanned
      * once: it is listed once.
      *
-     * @return Collection<int, array{key: string, teacher: bool, name: string, place: string, time: CarbonInterface}>
+     * @return Collection<int, array{key: string, teacher: bool, name: string, place: string, day: string|null, time: CarbonInterface}>
      */
     private function recentScans(): Collection
     {
         $today = [Dates::today(), Dates::today()->endOfDay()];
 
         $students = Attendance::query()
-            ->with(['enrollment.student', 'enrollment.circle'])
+            ->with(['enrollment.student', 'enrollment.circle', 'session'])
             ->where('method', AttendanceMethod::Qr->value)
             ->whereBetween('scanned_at', $today)
             ->latest('scanned_at')
@@ -158,6 +283,7 @@ class ScanAttendance extends Page
                 'teacher' => false,
                 'name' => $attendance->enrollment->student->full_name,
                 'place' => $attendance->enrollment->circle->name,
+                'day' => self::earlierDay($attendance->session->session_date),
                 'time' => $attendance->scanned_at,
             ]);
 
@@ -175,6 +301,7 @@ class ScanAttendance extends Page
                 'teacher' => true,
                 'name' => $scan->first()->teacher->full_name,
                 'place' => $scan->map(fn (TeacherAttendance $attendance): string => $attendance->session->course->name)->unique()->implode('، '),
+                'day' => self::earlierDay($scan->first()->session->session_date),
                 'time' => $scan->first()->scanned_at,
             ])
             ->values();
@@ -184,6 +311,14 @@ class ScanAttendance extends Page
             ->sortByDesc(fn (array $scan): int => $scan['time']->getTimestamp())
             ->take(self::RECENT_SCANS)
             ->values();
+    }
+
+    /**
+     * The day of a session scanned today for an earlier day, as shown; null for today's.
+     */
+    private static function earlierDay(CarbonInterface $sessionDate): ?string
+    {
+        return $sessionDate->isSameDay(Dates::today()) ? null : Dates::show($sessionDate);
     }
 
     private function tone(ScanResult $outcome): string

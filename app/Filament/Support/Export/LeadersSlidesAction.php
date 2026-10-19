@@ -8,21 +8,21 @@ use App\Filament\Support\Attempt;
 use App\Filament\Support\Download;
 use App\Filament\Support\Options;
 use App\Filament\Support\Reports\ReportFilterFields;
+use App\Filament\Widgets\Reports\StudentsReport;
 use App\Http\Requests\Export\LeadersSlidesRequest;
 use App\Services\Export\ExportedFile;
-use App\Services\Export\LeadersTemplates;
-use App\Services\Statistics\CircleLeaders;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * The button that exports the slides of the leaders of each circle as a
+ * The button that exports the slides of the students of each circle as a
  * PowerPoint file. It is the same on every report page.
  */
 final class LeadersSlidesAction
@@ -30,7 +30,7 @@ final class LeadersSlidesAction
     public const NAME = 'exportLeadersSlides';
 
     /**
-     * @param  Closure(): array<string, mixed>  $filters  the filter of the page the button stands on; the window opens on the same course and period
+     * @param  Closure(): array<string, mixed>  $filters  the filter of the page the button stands on; the window opens on the same course, circle and period
      */
     public static function make(Closure $filters): Action
     {
@@ -38,32 +38,35 @@ final class LeadersSlidesAction
             ->label('شرائح الأوائل')
             ->icon(Heroicon::OutlinedPresentationChartBar)
             ->color('gray')
-            ->modalHeading('تصدير شرائح أوائل الحلقات')
-            ->modalDescription('ملف PowerPoint فيه شريحة لكل حلقة تعرض أوائل طلابها في الفترة المختارة. تتوالى الشرائح وحدها ويعود العرض إلى أوله بلا توقف.')
+            ->modalHeading('تصدير شرائح الحلقات')
+            ->modalDescription('ملف PowerPoint فيه شريحة لكل حلقة، يُرتَّب فيها طلابها من الأول، بحجم يناسب عددهم (والحلقة الكبيرة تأخذ أكثر من شريحة). تتوالى الشرائح وحدها ويعود العرض إلى أوله بلا توقف.')
             ->modalSubmitActionLabel('تصدير الملف')
             ->fillForm(fn (): array => self::defaults($filters()))
             ->schema([
                 Grid::make(['md' => 2])
                     ->schema([
-                        Select::make('course_id')
-                            ->label('الدورة')
-                            ->options(fn (): array => Options::courses())
-                            ->searchable()
+                        ReportFilterFields::course()
+                            ->placeholder(null)
+                            ->live()
                             ->markAsRequired(),
+                        ReportFilterFields::circle()
+                            ->helperText('اختر حلقة لملف خاص بها، أو اتركها لكل حلقات الدورة.'),
                         Select::make('criterion')
-                            ->label('الأوائل حسب')
+                            ->label('الترتيب حسب')
                             ->options(self::criteria())
                             ->selectablePlaceholder(false)
+                            ->helperText(fn (Get $get): ?string => self::criterionNote($get('criterion')))
+                            ->live()
                             ->markAsRequired(),
+                        TextInput::make('top')
+                            ->label('عدد الطلاب في كل حلقة')
+                            ->inputMode('numeric')
+                            ->placeholder('كل الطلاب')
+                            ->helperText('اتركه فارغاً لعرض كل طلاب الحلقة. وإن كتبت عدداً عُرض الأوائل فقط ممن لهم شيء في الفترة.'),
                         ReportFilterFields::from()
                             ->helperText('اتركه فارغاً ليبدأ العدّ من أول الدورة.'),
                         ReportFilterFields::until()
                             ->helperText('اتركه فارغاً ليستمر العدّ حتى اليوم.'),
-                        TextInput::make('top')
-                            ->label('عدد الأوائل في كل حلقة')
-                            ->inputMode('numeric')
-                            ->helperText(fn (LeadersTemplates $templates): ?string => self::capacityNote($templates))
-                            ->markAsRequired(),
                         TextInput::make('seconds_per_slide')
                             ->label('مدة عرض كل شريحة')
                             ->inputMode('numeric')
@@ -85,14 +88,16 @@ final class LeadersSlidesAction
      */
     private static function defaults(array $filters): array
     {
-        $criterion = $filters['rank_by'] ?? null;
+        $criterion = $filters[StudentsReport::CRITERION_FILTER] ?? null;
+        $courseId = $filters['course_id'] ?? Options::soleActiveCourseId();
 
         return [
-            'course_id' => $filters['course_id'] ?? Options::soleActiveCourseId(),
+            'course_id' => $courseId,
+            'circle_id' => filled($courseId) ? ($filters['circle_id'] ?? null) : null,
             'from' => $filters['from'] ?? null,
             'until' => $filters['until'] ?? null,
             'criterion' => is_string($criterion) && isset(self::criteria()[$criterion]) ? $criterion : RankingCriterion::NewPages->value,
-            'top' => LeadersSlidesRequest::DEFAULT_TOP,
+            'top' => null,
             'seconds_per_slide' => LeadersSlidesRequest::DEFAULT_SECONDS_PER_SLIDE,
             'opens_as_show' => false,
         ];
@@ -103,23 +108,25 @@ final class LeadersSlidesAction
      */
     private static function criteria(): array
     {
-        $options = [];
-
-        foreach (CircleLeaders::CRITERIA as $criterion) {
-            $options[$criterion->value] = $criterion->label();
-        }
-
-        return $options;
+        return [
+            RankingCriterion::NewPages->value => 'الحفظ (الصفحات الجديدة)',
+            RankingCriterion::Points->value => 'النقاط',
+            RankingCriterion::Attendance->value => 'الحضور',
+            RankingCriterion::Exams->value => 'السبر',
+        ];
     }
 
     /**
-     * The admin's own slide has a fixed number of places; asking for more
-     * leaders than that would not show them.
+     * What the number next to each name will be.
      */
-    private static function capacityNote(LeadersTemplates $templates): ?string
+    private static function criterionNote(mixed $criterion): ?string
     {
-        $slots = $templates->customSlots();
-
-        return $slots === null ? null : "قالبك الخاص يتسع لـ {$slots} من الأوائل في الشريحة، ولا يُعرض أكثر من ذلك.";
+        return match (is_string($criterion) ? RankingCriterion::tryFrom($criterion) : null) {
+            RankingCriterion::NewPages => 'بجانب كل اسم: عدد الصفحات الجديدة التي سمّعها في الفترة.',
+            RankingCriterion::Points => 'بجانب كل اسم: نقاطه في الفترة.',
+            RankingCriterion::Attendance => 'بجانب كل اسم: عدد أيام حضوره. والترتيب بنسبة الحضور، فلا يتأخر من التحق بالدورة متأخراً.',
+            RankingCriterion::Exams => 'بجانب كل اسم: عدد الأجزاء التي نجح في سبرها في الفترة.',
+            default => null,
+        };
     }
 }

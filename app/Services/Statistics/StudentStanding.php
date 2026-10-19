@@ -26,6 +26,11 @@ final readonly class StudentStanding
         public int $attended,
         /** Sessions that were held while the student was in the course. */
         public int $sessions,
+        /**
+         * The juz the student passed an exam of (السبر) in the period, in
+         * this course: each juz counts once, and a retake is not a pass.
+         */
+        public int $examsPassed,
     ) {}
 
     public function hasLeft(): bool

@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Documents\CircleSheet;
 use App\Actions\Documents\PrepareCircleSheets;
+use App\Actions\Documents\PrintedCircleSheets;
 use App\Filament\Pages\Dashboard;
 use App\Http\Controllers\Concerns\ReturnsToPanel;
 use App\Models\Circle;
 use App\Models\Course;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 
 /**
  * The sheets of a course's circles on A4 paper (one circle, or every circle
  * of the course, each on its own pages): the list of the students with
- * their phones and their pages, or their attendance codes.
+ * their phones and their records, or their attendance codes.
  */
 final class CircleSheetController extends Controller
 {
@@ -31,13 +30,11 @@ final class CircleSheetController extends Controller
         return $this->page($request, 'documents.circle-codes', $prepareCircleSheets->handle($request->query(), withCodes: true), 'رموز حضور');
     }
 
-    /**
-     * @param  Collection<int, CircleSheet>  $sheets
-     */
-    private function page(Request $request, string $view, Collection $sheets, string $what): View
+    private function page(Request $request, string $view, PrintedCircleSheets $printed, string $what): View
     {
         return view($view, [
-            'sheets' => $sheets,
+            'sheets' => $printed->sheets,
+            'options' => $printed->options,
             'heading' => $what.' '.$this->scope($request),
             'homeUrl' => Dashboard::getUrl(),
             'backUrl' => $this->backUrl($request),

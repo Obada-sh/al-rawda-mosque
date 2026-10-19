@@ -60,7 +60,7 @@ Two kinds of failure, and they are never mixed:
 
 `BusinessRuleViolation::because('enrollment.duplicate', 'الطالب مسجَّل مسبقاً في هذه الدورة.')` carries a **stable key** (`$violation->rule`) and the **Arabic message**. Tests assert on the key, the admin reads the message. Each action lists the keys it can throw in the `@throws` line of `handle()`.
 
-The scan actions deliberately do not throw for expected situations: `Attendance\ScanCard` (the scan screen's one entry, which hands a teacher's card to `RecordTeacherScan` and a student's to `RecordScanAttendance`) returns a `ScanResult` with a `ScanStatus` (recorded, already recorded, unknown card, not a class day, ...). The scan screen must always have something to show in a colour, including for a card it does not know.
+The scan actions deliberately do not throw for expected situations: `Attendance\ScanCard` (the scan screen's one entry, which hands a teacher's card to `RecordTeacherScan` and a student's to `RecordScanAttendance`, for today or for the earlier day the desk is set to) returns a `ScanResult` with a `ScanStatus` (recorded, already recorded, unknown card, not a class day, ...). The scan screen must always have something to show in a colour, including for a card it does not know. In the same spirit `RecordBulkAttendance` records many students at once and returns a `BulkAttendanceResult` (who was recorded, who already was, who was refused and why) instead of stopping at the first refusal.
 
 ### Services: shared reads and calculations
 
@@ -75,7 +75,7 @@ The scan actions deliberately do not throw for expected situations: `Attendance\
 | `Statistics` | the reports. `StudentStandings` computes one row per student in a course; every other report is built from those rows |
 | `Finance` | `ExpenseReport` and its result objects |
 | `Market` | `PointsBalance` (what a student can still spend in a course) and `MarketItemPictures` |
-| `Export` | the PowerPoint slides: `LeadersSlides`, `LeadersTemplates`, and `Pptx/*`, a small editor of `.pptx` files |
+| `Export` | the PowerPoint slides: `LeadersSlides`, `LeadersTemplates`, and `Pptx/*`, a small editor of `.pptx` files (filling placeholders, numbered slots, and boards: one cell repeated and laid out to fit, `SlideBoard`, `BoardLayout`, `TextFitter`) |
 | `Backup` | writing, checking and restoring backup files, without `mysqldump` |
 | `Cards` | QR drawing and card code generation (implementations of two contracts); `CardDesign`, the measures of the printed card |
 | `Teachers` | `TeacherCircles` (the circles a teacher supervises or assists in a course, the teachers of a course), `TeacherCards` (a teacher's card in a course), `TeacherPhotos` |
@@ -167,11 +167,12 @@ Filament forms in this project therefore declare **no validation rules** (`->req
 | `Options` | the choices of drop-down lists: what is active today, plus the value a record already holds |
 | `Fields\StudentSelect`, `Fields\EnrollmentSelect` | searchable pickers (there can be hundreds of students) |
 | `Fields\FileToCheck` | an upload the action checks and stores itself; says the size limit of this computer |
+| `Fields\PhotoUpload` | the photo of a student or a teacher, cut by the admin to the circle of the card |
 | `Presenters\CardPresenter` | the address of the card design's picture; how much the card is enlarged on the design page |
 | `Filters\CourseFilter`, `Filters\DateRangeFilter` | table filters used on several screens |
 | `Presenters\*` | how values are written and coloured (`ReportPresenter`, `ExamPresenter`, ...) |
 | `Reports\ReportFilterFields`, `Reports\ReportRows` | the filter of the report pages; sorting, searching and paging of computed rows |
-| `Enrollments\EnrollmentActions`, `Tables\TransfersLogTable`, `Export\LeadersSlidesAction` | buttons and tables that appear on more than one screen |
+| `Enrollments\EnrollmentActions`, `Tables\TransfersLogTable`, `Export\LeadersSlidesAction`, `Attendance\BulkAttendanceAction`, `Documents\DocumentActions` | buttons and tables that appear on more than one screen |
 | `Download` | sends an `ExportedFile` made by an action to the browser |
 | `Theme`, `DemoNotice` | the palette and font; the marks that say "this is the demo" |
 
@@ -192,10 +193,13 @@ The laptop is not always on, so nothing depends on a scheduler or a queue. What 
 | What | Where | When |
 |---|---|---|
 | Automatic backup of the day | middleware `TakeDailyBackup` → `GuardDailyBackup` → `RunDailyBackup` | first panel page of the day, after the page was sent; also at every start (`rawda:prepare`) |
+| Evening copy for Google Drive | middleware `TakeEveningDriveCopy` → `GuardEveningDriveCopy` → `CopyBackupToDrive` | after a GET panel page or a tick, once a day from the chosen time (a missed evening is caught up at the next use) |
 | Reminder about incomplete profiles | middleware `RemindAdmin` → `RemindAboutIncompleteProfiles` | when the panel is opened, every N days (a setting) |
 | Notification that a juz exam is waiting | event `JuzExamOpened` → `NotifyAdminOfPendingJuzExam` | when the recitation that completes the juz is saved (after commit) |
 
-A failed automatic backup never stops the admin from working: it is logged and reported once a day in the notifications.
+A failed automatic backup never stops the admin from working: it is logged and reported once a day in the notifications. The same goes for the evening copy, which is tried again half an hour later.
+
+The one thing tied to a time of day, the evening copy, needs a page to ask: while it is on, every page of the signed-in admin carries a small script (`resources/views/filament/partials/tick.blade.php`, render hook `BODY_END`) that calls `GET /admin/tick` (`TickController`, an empty 204) every five minutes; the middleware does the work after that answer was sent. So the copy happens on time as long as one page of the panel is open, and costs nothing when nothing is due.
 
 ## Requests through the application
 
@@ -203,11 +207,11 @@ A failed automatic backup never stops the admin from working: it is logged and r
 
 1. `RefuseRealDataAtDemoAddress` (global, first): on the demo's port, a system that is not on a demo database answers 503.
 2. `RedirectToSetupWhenNoAdmin`: until an admin exists, every panel address leads to `/setup`.
-3. Filament's `Authenticate`, then `RemindAdmin` and `TakeDailyBackup`.
+3. Filament's `Authenticate`, then `RemindAdmin`, `TakeDailyBackup` and `TakeEveningDriveCopy`.
 
-Routes outside the panel are in `routes/web.php` (`/` redirects to `/admin`; `/setup`). More routes are registered **inside** the panel by `AdminPanelProvider::authenticatedRoutes()`, so only the signed-in admin reaches them: the printable cards of the students and of the teachers, the download of a backup, the pictures (students' and teachers' photos, circles' logos, market items' pictures; files deliberately not in the public folder), and the documents printed on A4 under `/admin/print/`: a student's file (`StudentFileController`), and a circle's list of students or its attendance codes (`CircleSheetController`).
+Routes outside the panel are in `routes/web.php` (`/` redirects to `/admin`; `/setup`). More routes are registered **inside** the panel by `AdminPanelProvider::authenticatedRoutes()`, so only the signed-in admin reaches them: the printable cards of the students and of the teachers, the download of a backup, the pictures (students' and teachers' photos, circles' logos, market items' pictures; files deliberately not in the public folder), the documents printed on A4 under `/admin/print/`: a student's file (`StudentFileController`), a circle's list of students or its attendance codes (`CircleSheetController`), and the list of the mosque's students (`MosqueSheetController`); and the tick of open pages (`/admin/tick`).
 
-**Printed documents.** Each is prepared by an action that returns readonly objects (`Actions\Documents\PrepareStudentFile` → `StudentFile`, `PrepareCircleSheets` → `CircleSheet`), and drawn by a view of `resources/views/documents` on the shared `documents.layout` (the toolbar with back, logo and print) and `documents.partials.letterhead` (the mosque's logo at the top right, what the document is next to it, the day at the left), styled by `public/css/documents.css` and `print-toolbar.css`. Their figures come from `StudentStandings`, so a sheet and the statistics never disagree. The "back" button of every print page is `Controllers\Concerns\ReturnsToPanel`: the panel page the admin came from, never another print page, never another site.
+**Printed documents.** Each is prepared by an action that returns readonly objects (`Actions\Documents\PrepareStudentFile` → `StudentFile`, `PrepareCircleSheets` → `PrintedCircleSheets`: the `SheetOptions` asked for and a `CircleSheet` per circle; `PrepareMosqueSheet` → `MosqueSheet`; both lists build their records with `SheetRecords` and print `SheetLine`s through `documents.partials.students-table`), and drawn by a view of `resources/views/documents` on the shared `documents.layout` (the toolbar with back, logo and print) and `documents.partials.letterhead` (the mosque's logo at the top right, what the document is next to it, the day at the left), styled by `public/css/documents.css` and `print-toolbar.css`. Their figures come from `StudentStandings`, so a sheet and the statistics never disagree. The "back" button of every print page is `Controllers\Concerns\ReturnsToPanel`: the panel page the admin came from, never another print page, never another site.
 
 There is one role. `User::canAccessPanel()` lets every signed-in user in, and `BaseRequest::authorize()` returns `true`. If roles are ever added, those are the two places to start.
 
@@ -216,8 +220,8 @@ There is one role. `User::canAccessPanel()` lets every signed-in user in, and `B
 | Where | What belongs there |
 |---|---|
 | `.env` | the database, `APP_KEY`, and optional overrides of `config/rawda.php`. Never committed |
-| `config/rawda.php` | settings of **the computer**: backups folder, how many automatic backups to keep, folder of uploaded files, the demo's port |
-| table `settings` (`SettingsStore`, keys in `App\Support\SettingKey`) | settings of **the mosque**, edited in the panel: its name, the reminder interval |
+| `config/rawda.php` | settings of **the computer**: backups folder, how many automatic backups to keep, whether the evening copy for Google Drive may run here, folder of uploaded files, the demo's port |
+| table `settings` (`SettingsStore`, keys in `App\Support\SettingKey`) | settings of **the mosque**, edited in the panel: its name, the reminder interval, the evening copy for Google Drive (its folder, time and days kept; they travel with a backup, so a restored system on another computer may need its folder set again) |
 | `deploy/php.ini` | the settings of the PHP that travels with the system |
 
 Of the files in `config/`, only `app.php` and `rawda.php` were written for this project. The others are the untouched defaults of the Laravel skeleton.

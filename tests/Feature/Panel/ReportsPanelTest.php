@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Panel;
 
+use App\Enums\ExamGrade;
 use App\Filament\Pages\Reports\KnightRanking;
 use App\Filament\Pages\Reports\Statistics;
 use App\Filament\Widgets\OverviewStats;
@@ -112,6 +113,37 @@ class ReportsPanelTest extends PanelTestCase
             ->assertCanSeeTableRecords([$khalid])
             ->assertCanNotSeeTableRecords([$ahmad, $bilal])
             ->assertTableColumnStateSet('place', 1, $khalid);
+    }
+
+    public function test_the_juz_passed_are_shown_and_rank_the_students(): void
+    {
+        $this->examine($this->bilal, 30, '2026-10-05', ExamGrade::Good);
+        $this->examine($this->bilal, 29, '2026-10-06', ExamGrade::Excellent);
+        $this->examine($this->khalid, 30, '2026-10-06', ExamGrade::Retake);
+
+        $ahmad = (string) $this->ahmad->getKey();
+        $bilal = (string) $this->bilal->getKey();
+        $khalid = (string) $this->khalid->getKey();
+        $course = ['course_id' => $this->course->getKey()];
+
+        Livewire::test(StudentsReport::class, $this->on($course + ['rank_by' => 'exams']))
+            ->assertSee('الترتيب حسب: السبر')
+            ->assertCanSeeTableRecords([$bilal, $ahmad, $khalid], inOrder: true)
+            ->assertTableColumnStateSet('exams', 2, $bilal)
+            ->assertTableColumnStateSet('exams', 0, $khalid)
+            ->assertTableColumnStateSet('place', 2, $ahmad)
+            ->assertTableColumnStateSet('place', 2, $khalid);
+
+        Livewire::test(ScopeTotalsStats::class, $this->on($course))
+            ->assertSee('السبر')
+            ->assertSee('أجزاء نجح الطلاب في سبرها');
+
+        Livewire::test(CirclesReport::class, $this->on($course))
+            ->assertTableColumnStateSet('exams', 2, (string) $this->circleA->getKey())
+            ->assertTableColumnStateSet('exams', 0, (string) $this->circleB->getKey());
+
+        Livewire::test(CoursesReport::class, $this->on())
+            ->assertTableColumnStateSet('exams', 2, (string) $this->course->getKey());
     }
 
     public function test_the_students_report_is_searched_by_name_and_paged(): void

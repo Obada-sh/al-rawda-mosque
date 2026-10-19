@@ -4,17 +4,18 @@ namespace App\Http\Requests\Export;
 
 use App\Enums\RankingCriterion;
 use App\Http\Requests\BaseRequest;
-use App\Services\Export\LeadersTemplates;
 use App\Services\Statistics\CircleLeaders;
 use Illuminate\Validation\Rule;
 
 /**
- * What the admin chooses when exporting the slides of the leaders of
- * each circle.
+ * What the admin chooses when exporting the slides of the students of
+ * each circle: the course, one of its circles or all of them, the period,
+ * what the students are ranked by, and how many of each circle to show
+ * (all of them when left empty).
  */
 class LeadersSlidesRequest extends BaseRequest
 {
-    public const DEFAULT_TOP = 3;
+    public const MAX_TOP = 100;
 
     public const DEFAULT_SECONDS_PER_SLIDE = 8;
 
@@ -28,9 +29,10 @@ class LeadersSlidesRequest extends BaseRequest
     {
         return [
             'course_id' => ['required', 'integer', 'exists:courses,id'],
+            'circle_id' => ['nullable', 'integer', 'exists:circles,id'],
             'from' => ['nullable', 'date'],
             'until' => ['nullable', 'date', 'after_or_equal:from'],
-            'top' => ['required', 'integer', 'min:1', 'max:'.LeadersTemplates::MAX_LEADERS],
+            'top' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_TOP],
             'criterion' => ['required', Rule::in(array_map(
                 fn (RankingCriterion $criterion): string => $criterion->value,
                 CircleLeaders::CRITERIA,
@@ -51,9 +53,10 @@ class LeadersSlidesRequest extends BaseRequest
     {
         return [
             'course_id' => 'الدورة',
+            'circle_id' => 'الحلقة',
             'from' => 'من تاريخ',
             'until' => 'إلى تاريخ',
-            'top' => 'عدد الأوائل',
+            'top' => 'عدد الطلاب في كل حلقة',
             'criterion' => 'معيار الترتيب',
             'seconds_per_slide' => 'مدة عرض الشريحة',
             'opens_as_show' => 'بدء العرض عند فتح الملف',

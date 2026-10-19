@@ -141,7 +141,8 @@
                                         @endif
                                     </td>
                                     <td>{{ $day->attendance?->method->label() ?? '' }}</td>
-                                    <td class="is-center">{{ $day->attendance?->scanned_at?->format('H:i') ?? '' }}</td>
+                                    {{-- The time a card was read, when it was read on the day itself (not entered later for it). --}}
+                                    <td class="is-center">{{ $day->attendance?->scanned_at?->isSameDay($day->session->session_date) ? $day->attendance->scanned_at->format('H:i') : '' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

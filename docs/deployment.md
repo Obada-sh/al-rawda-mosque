@@ -12,7 +12,7 @@ Nobody edits the system on the laptop. The data travels the other way only as ba
 
 | | In the repository | How the laptop gets it |
 |---|---|---|
-| The code, the docs, the default slide designs, the fonts | yes | `git pull` |
+| The code, the docs, the default slide design, the fonts | yes | `git pull` |
 | `vendor/` (the libraries) | no, only `composer.lock` | the package the first time; `composer install` on later updates |
 | `public/css/filament`, `public/js/filament`, `public/fonts/filament` | no, generated from the libraries | the package; `php artisan filament:upgrade` on updates |
 | `php/` (PHP itself, with `composer.phar`) | no | the package |
@@ -128,7 +128,7 @@ The next `update.bat` moves the laptop forward again, so fix the problem at home
 
 The data never goes through git. To move it from one computer to another: on the old one, Settings → Backups → take a backup and **download** it; on the new one, **add a backup from a file**, then **restore** it. A backup made by a newer version of the system is refused by an older one: update first.
 
-The automatic backups are on the same disk as the data. Copy the newest file from `backups\` to a USB stick regularly.
+The automatic backups are on the same disk as the data. Copy the newest file from `backups\` to a USB stick regularly, or set up the **evening copy for Google Drive** (Settings → Backups → «إعداد Google Drive»): install Google Drive for desktop on the laptop, sign in, make a folder in My Drive, and give its path (`G:\My Drive\…`). The README (Arabic) has the steps; `docs/domain.md` how it works. On a new laptop the folder must be set again if its path differs.
 
 ## The scripts
 

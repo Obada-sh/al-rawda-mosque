@@ -21,28 +21,32 @@ final class SaveLeadersTemplate
 
     /**
      * @param  array<string, mixed>  $input  'template' => the uploaded .pptx file
-     * @return int how many leaders the new template has room for
+     * @return SlideDeckTemplate the new template: a board, or so many numbered places
      *
      * @throws ValidationException
-     * @throws BusinessRuleViolation slide_template.not_a_presentation | slide_template.too_large | slide_template.no_placeholders | slide_template.no_slots
+     * @throws BusinessRuleViolation slide_template.not_a_presentation | slide_template.too_large | slide_template.no_placeholders | slide_template.no_room | slide_template.no_slots
      */
-    public function handle(array $input): int
+    public function handle(array $input): SlideDeckTemplate
     {
         /** @var UploadedFile $file */
         $file = SlideTemplateRequest::validateData($input)['template'];
 
         try {
-            $slots = SlideDeckTemplate::open($file->getRealPath())->slots();
+            $template = LeadersTemplates::open($file->getRealPath());
         } catch (InvalidSlideTemplate $exception) {
             throw SlideTemplateViolation::from($exception);
         }
 
-        if ($slots < 1) {
-            throw SlideTemplateViolation::withoutSlots();
+        if (! $template->isBoard() && $template->slots() < 1) {
+            throw SlideTemplateViolation::withoutStudents();
+        }
+
+        if ($template->itemsPerSlide() < 1) {
+            throw SlideTemplateViolation::withoutRoom();
         }
 
         $this->templates->replaceWith($file->getRealPath());
 
-        return $slots;
+        return $template;
     }
 }

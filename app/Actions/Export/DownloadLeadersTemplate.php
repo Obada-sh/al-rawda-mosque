@@ -3,14 +3,12 @@
 namespace App\Actions\Export;
 
 use App\Exceptions\BusinessRuleViolation;
-use App\Http\Requests\Export\DefaultSlideTemplateRequest;
 use App\Services\Export\ExportedFile;
 use App\Services\Export\LeadersTemplates;
-use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 /**
- * Hands the admin a slide template to open in PowerPoint: a default
+ * Hands the admin a slide template to open in PowerPoint: the default
  * design to start their own from, or the design they uploaded earlier.
  */
 final class DownloadLeadersTemplate
@@ -22,23 +20,17 @@ final class DownloadLeadersTemplate
     public function __construct(private readonly LeadersTemplates $templates) {}
 
     /**
-     * The default design for a number of leaders.
-     *
-     * @param  array<string, mixed>  $input  'leaders' => how many leaders a slide shows
-     *
-     * @throws ValidationException
+     * The default design.
      */
-    public function default(array $input): ExportedFile
+    public function default(): ExportedFile
     {
-        $leaders = (int) DefaultSlideTemplateRequest::validateData($input)['leaders'];
-
-        $contents = file_get_contents($this->templates->defaultPath($leaders));
+        $contents = @file_get_contents($this->templates->defaultPath());
 
         if ($contents === false) {
-            throw new RuntimeException("The default slide template for {$leaders} leaders is missing.");
+            throw new RuntimeException('The default slide template is missing.');
         }
 
-        return new ExportedFile("قالب شرائح الأوائل - {$leaders}.pptx", $contents, self::MIME_TYPE);
+        return new ExportedFile('قالب شرائح الأوائل.pptx', $contents, self::MIME_TYPE);
     }
 
     /**

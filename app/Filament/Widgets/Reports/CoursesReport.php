@@ -60,6 +60,12 @@ class CoursesReport extends TableWidget
                     ->numeric()
                     ->alignCenter()
                     ->sortable(),
+                TextColumn::make('exams')
+                    ->label('السبر')
+                    ->tooltip('مجموع الأجزاء التي نجح طلاب الدورة في سبرها في الفترة')
+                    ->numeric()
+                    ->alignCenter()
+                    ->sortable(),
                 TextColumn::make('points')
                     ->label('مجموع النقاط')
                     ->numeric()
@@ -94,6 +100,7 @@ class CoursesReport extends TableWidget
                 'students' => $course->students,
                 'attendance_rate' => $course->attendanceRate(),
                 'new_pages' => $course->newPages,
+                'exams' => $course->examsPassed,
                 'points' => $course->points,
                 'average_points' => $course->averagePoints(),
             ],

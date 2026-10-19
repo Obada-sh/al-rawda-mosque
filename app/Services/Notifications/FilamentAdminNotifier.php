@@ -8,6 +8,7 @@ use App\Filament\Resources\JuzExams\JuzExamResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Models\JuzExam;
 use App\Models\User;
+use App\Support\ArabicNoun;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -68,6 +69,41 @@ final class FilamentAdminNotifier implements AdminNotifier
                         ->markAsRead(),
                 ]),
         );
+    }
+
+    public function driveCopyFailed(string $reason): void
+    {
+        $this->store(
+            Notification::make()
+                ->title('تعذّر وضع النسخة المسائية في Google Drive')
+                ->body($reason.' سيحاول النظام مرة أخرى بعد نصف ساعة.')
+                ->danger()
+                ->actions([$this->backupsLink()]),
+        );
+    }
+
+    public function driveCopiesNotRemoved(array $names, string $folder): void
+    {
+        $this->store(
+            Notification::make()
+                ->title('احذف النسخ القديمة من مجلد Google Drive')
+                ->body(sprintf(
+                    'تعذّر على النظام حذف %s من المجلد %s: %s. احذفها بيدك.',
+                    ArabicNoun::backupCopy()->count(count($names)),
+                    $folder,
+                    implode('، ', $names),
+                ))
+                ->warning()
+                ->actions([$this->backupsLink()]),
+        );
+    }
+
+    private function backupsLink(): Action
+    {
+        return Action::make('backups')
+            ->label('فتح النسخ الاحتياطي')
+            ->url(Backups::getUrl())
+            ->markAsRead();
     }
 
     private function examNotification(JuzExam $exam): Notification

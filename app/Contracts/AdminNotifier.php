@@ -26,4 +26,19 @@ interface AdminNotifier
      * The automatic backup of the day could not be taken.
      */
     public function automaticBackupFailed(): void;
+
+    /**
+     * The evening copy could not be put in the Google Drive folder.
+     *
+     * @param  string  $reason  in Arabic
+     */
+    public function driveCopyFailed(string $reason): void;
+
+    /**
+     * Old evening copies could not be removed from the Google Drive
+     * folder: the admin should remove them by hand.
+     *
+     * @param  list<string>  $names  the file names
+     */
+    public function driveCopiesNotRemoved(array $names, string $folder): void;
 }

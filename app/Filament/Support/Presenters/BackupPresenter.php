@@ -44,6 +44,7 @@ final class BackupPresenter
             BackupKind::Manual => 'primary',
             BackupKind::BeforeRestore, BackupKind::BeforeUpdate => 'warning',
             BackupKind::Uploaded => 'info',
+            BackupKind::Evening => 'success',
         };
     }
 }

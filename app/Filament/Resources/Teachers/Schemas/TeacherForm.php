@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Teachers\Schemas;
 
+use App\Filament\Support\Fields\PhotoUpload;
 use App\Filament\Support\Presenters\TeacherPresenter;
 use App\Models\Teacher;
-use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\ImageEntry;
@@ -46,13 +46,9 @@ class TeacherForm
                             ->circular()
                             ->imageSize(96)
                             ->visible(fn (?Teacher $record): bool => self::hasPhoto($record)),
-                        // The picture is cut square and made small in the browser,
-                        // then checked and kept by the SaveTeacher action.
-                        FileUpload::make('photo')
-                            ->label(fn (?Teacher $record): string => self::hasPhoto($record) ? 'صورة جديدة بدل الحالية' : 'الصورة')
-                            ->avatar()
-                            ->storeFiles(false)
-                            ->helperText('JPG أو PNG أو WebP. تُقصّ الصورة مربّعة تلقائياً.'),
+                        // Cut to the circle of the card in the browser, then checked and kept by the SaveTeacher action.
+                        PhotoUpload::make()
+                            ->label(fn (?Teacher $record): string => self::hasPhoto($record) ? 'صورة جديدة بدل الحالية' : 'الصورة'),
                         Toggle::make('remove_photo')
                             ->label('إزالة الصورة الحالية')
                             ->visible(fn (?Teacher $record): bool => self::hasPhoto($record)),

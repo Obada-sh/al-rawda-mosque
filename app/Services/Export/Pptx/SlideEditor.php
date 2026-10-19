@@ -7,14 +7,15 @@ use DOMElement;
 use DOMXPath;
 
 /**
- * Edits the XML of one slide: fills its placeholders, removes the shapes
- * that have nothing to show and sets when the next slide comes.
+ * Edits the XML of one slide: fills its placeholders, repeats the cell of
+ * a board, removes the shapes that have nothing to show and sets when the
+ * next slide comes.
  */
 final class SlideEditor
 {
     private const PRESENTATION = 'http://schemas.openxmlformats.org/presentationml/2006/main';
 
-    private const DRAWING = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    public const DRAWING = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
     private const COMPATIBILITY = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
 
@@ -64,9 +65,19 @@ final class SlideEditor
      */
     public function placeholders(): array
     {
+        return $this->placeholdersWithin($this->root());
+    }
+
+    /**
+     * The placeholders written in one shape (or anywhere under a node).
+     *
+     * @return list<string> lower-cased, without braces
+     */
+    public function placeholdersWithin(DOMElement $node): array
+    {
         $names = [];
 
-        foreach ($this->paragraphs() as $paragraph) {
+        foreach ($this->paragraphs($node) as $paragraph) {
             $text = implode('', array_map(fn (DOMElement $run): string => $run->textContent, $this->runsOf($paragraph)));
 
             if (preg_match_all(self::PLACEHOLDER, $text, $matches) > 0) {
@@ -80,6 +91,20 @@ final class SlideEditor
     }
 
     /**
+     * The board of the slide: the cell that is repeated for every item of a
+     * list. Null when the slide has no cell.
+     *
+     * @param  list<string>  $cellPlaceholders  the placeholders that belong to the cell ({{name}}...), lower-cased
+     * @param  Box  $slide  the size of the slides of the presentation
+     *
+     * @throws InvalidSlideTemplate when the cell cannot be repeated
+     */
+    public function board(array $cellPlaceholders, Box $slide): ?SlideBoard
+    {
+        return $cellPlaceholders === [] ? null : SlideBoard::find($this, $this->xpath, $cellPlaceholders, $slide);
+    }
+
+    /**
      * Replaces every placeholder by its value. A placeholder without a
      * value becomes empty.
      *
@@ -89,12 +114,33 @@ final class SlideEditor
      * look of the piece in which it starts.
      *
      * @param  array<string, string>  $values  placeholder name => text
+     * @param  bool  $shrinkToFit  make the text of each filled shape small enough to stand on one line (see TextFitter)
      */
-    public function fill(array $values): void
+    public function fill(array $values, bool $shrinkToFit = false): void
+    {
+        $filled = $this->fillWithin($this->root(), $values);
+
+        if ($shrinkToFit) {
+            $fitter = new TextFitter($this->xpath);
+
+            foreach ($filled as $shape) {
+                $fitter->shrink($shape);
+            }
+        }
+    }
+
+    /**
+     * Fills the placeholders under one node only (one copy of a cell).
+     *
+     * @param  array<string, string>  $values  placeholder name => text
+     * @return list<DOMElement> the shapes whose text was filled
+     */
+    public function fillWithin(DOMElement $node, array $values): array
     {
         $values = array_change_key_case($values, CASE_LOWER);
+        $filled = [];
 
-        foreach ($this->paragraphs() as $paragraph) {
+        foreach ($this->paragraphs($node) as $paragraph) {
             $runs = $this->runsOf($paragraph);
             $texts = array_map(fn (DOMElement $run): string => $run->textContent, $runs);
             $whole = implode('', $texts);
@@ -116,7 +162,15 @@ final class SlideEditor
                     $this->setText($run, $texts[$index]);
                 }
             }
+
+            $shape = $this->xpath->query('ancestor::p:sp[1]', $paragraph)?->item(0);
+
+            if ($shape instanceof DOMElement && ! in_array($shape, $filled, true)) {
+                $filled[] = $shape;
+            }
         }
+
+        return $filled;
     }
 
     /**
@@ -225,9 +279,14 @@ final class SlideEditor
     /**
      * @return list<DOMElement>
      */
-    private function paragraphs(): array
+    private function paragraphs(DOMElement $node): array
     {
-        return iterator_to_array($this->xpath->query('//a:p'), false);
+        return iterator_to_array($this->xpath->query('descendant-or-self::a:p', $node), false);
+    }
+
+    private function root(): DOMElement
+    {
+        return $this->document->documentElement ?? throw InvalidSlideTemplate::notAPresentation();
     }
 
     /**

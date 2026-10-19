@@ -55,6 +55,7 @@ class ArabicNounTest extends TestCase
         $this->assertSame(['دورة واحدة', 'دورتان', '3 دورات', '12 دورة'], array_map(fn (int $number): string => ArabicNoun::course()->count($number), [1, 2, 3, 12]));
         $this->assertSame(['حلقة واحدة', 'حلقتان', '7 حلقات', '15 حلقة'], array_map(fn (int $number): string => ArabicNoun::circle()->count($number), [1, 2, 7, 15]));
         $this->assertSame(['سنة واحدة', 'سنتان', '9 سنوات', '16 سنة'], array_map(fn (int $number): string => ArabicNoun::year()->count($number), [1, 2, 9, 16]));
+        $this->assertSame(['نسخة واحدة', 'نسختان', '3 نسخ', '11 نسخة'], array_map(fn (int $number): string => ArabicNoun::backupCopy()->count($number), [1, 2, 3, 11]));
     }
 
     public function test_a_negative_number_is_not_a_count(): void

@@ -11,13 +11,20 @@ use App\Models\CourseSession;
 use App\Models\Enrollment;
 use App\Services\Attendance\SessionResolver;
 use App\Services\Points\PointsLedger;
+use App\Support\Dates;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Records today's attendance from a scanned card.
+ * Records the attendance of a scanned card: today's, or that of an
+ * earlier day the desk was set to (cards gathered on paper, a day the
+ * computer was off).
+ *
+ * The day follows the same rules as today: the course was running, the
+ * day is one of its class days or has a session already, and the
+ * student was in the course on it.
  *
  * Every expected situation (unknown card, already recorded, not a class
  * day...) comes back as a ScanResult, never as an exception, so the scan
@@ -30,9 +37,14 @@ final class RecordScanAttendance
         private readonly PointsLedger $points,
     ) {}
 
-    public function handle(?string $cardCode, ?CarbonInterface $at = null): ScanResult
+    /**
+     * @param  CarbonInterface|null  $at  when the card was read (now by default)
+     * @param  CarbonInterface|null  $day  the class day the attendance is for (the day of $at by default); never after today
+     */
+    public function handle(?string $cardCode, ?CarbonInterface $at = null, ?CarbonInterface $day = null): ScanResult
     {
         $at ??= now();
+        $day = Dates::parse(($day ?? $at)->toDateString());
 
         try {
             $data = ScanAttendanceRequest::validateData(['card_code' => $cardCode]);
@@ -49,30 +61,37 @@ final class RecordScanAttendance
             return new ScanResult(ScanStatus::UnknownCard);
         }
 
-        if ($enrollment->hasLeft() || $enrollment->student->isArchived()) {
-            return new ScanResult(ScanStatus::InactiveEnrollment, $enrollment);
+        // Told with the day when it is not today.
+        $shownDay = $day->isSameDay(Dates::today()) ? null : $day;
+        $result = fn (ScanStatus $status, ?Attendance $attendance = null): ScanResult => new ScanResult($status, $enrollment, $attendance, day: $shownDay);
+
+        $leftBefore = $enrollment->left_on !== null && $day->toDateString() > $enrollment->left_on->toDateString();
+
+        if ($leftBefore || $enrollment->student->isArchived()) {
+            return $result(ScanStatus::InactiveEnrollment);
         }
 
         $course = $enrollment->course;
 
-        if (! $course->isActive() || ! $course->covers($at)) {
-            return new ScanResult(ScanStatus::CourseNotRunning, $enrollment);
+        if (! $course->isActive() || ! $course->covers($day)) {
+            return $result(ScanStatus::CourseNotRunning);
         }
 
-        return DB::transaction(function () use ($enrollment, $course, $at): ScanResult {
+        if ($day->toDateString() < $enrollment->enrolled_on->toDateString()) {
+            return $result(ScanStatus::BeforeEnrollment);
+        }
+
+        return DB::transaction(function () use ($enrollment, $course, $at, $day, $result): ScanResult {
             try {
-                $session = $this->sessions->forScan($course, $at);
+                $session = $this->sessions->forScan($course, $day);
             } catch (BusinessRuleViolation $violation) {
-                return new ScanResult(
-                    $violation->rule === 'session.cancelled' ? ScanStatus::SessionCancelled : ScanStatus::NotScheduledDay,
-                    $enrollment,
-                );
+                return $result($violation->rule === 'session.cancelled' ? ScanStatus::SessionCancelled : ScanStatus::NotScheduledDay);
             }
 
             $existing = $this->findAttendance($session, $enrollment);
 
             if ($existing !== null) {
-                return new ScanResult(ScanStatus::AlreadyRecorded, $enrollment, $existing);
+                return $result(ScanStatus::AlreadyRecorded, $existing);
             }
 
             try {
@@ -84,7 +103,7 @@ final class RecordScanAttendance
                 ]);
             } catch (UniqueConstraintViolationException) {
                 // The same card was read twice at the same moment.
-                return new ScanResult(ScanStatus::AlreadyRecorded, $enrollment, $this->findAttendance($session, $enrollment));
+                return $result(ScanStatus::AlreadyRecorded, $this->findAttendance($session, $enrollment));
             }
 
             $attendance->setRelation('enrollment', $enrollment);
@@ -92,7 +111,7 @@ final class RecordScanAttendance
 
             $this->points->awardForAttendance($attendance);
 
-            return new ScanResult(ScanStatus::Recorded, $enrollment, $attendance);
+            return $result(ScanStatus::Recorded, $attendance);
         });
     }
 

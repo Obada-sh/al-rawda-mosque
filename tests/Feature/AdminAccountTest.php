@@ -68,6 +68,17 @@ class AdminAccountTest extends TestCase
 
         $this->assertSame(2, $admin->notifications()->count());
         $this->assertStringContainsString($student->full_name, json_encode($admin->notifications()->pluck('data')->all(), JSON_UNESCAPED_UNICODE));
+
+        // The evening copy for Google Drive: why it failed, and which old copies are left for the admin to remove.
+        $notifier->driveCopyFailed('لم يُعثر على المجلد G:\\My Drive\\نسخ.');
+        $notifier->driveCopiesNotRemoved(['rawda-backup-2026-10-01_200000-evening.zip'], 'G:\\My Drive\\نسخ');
+
+        $bell = json_encode($admin->notifications()->pluck('data')->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $this->assertSame(4, $admin->notifications()->count());
+        $this->assertStringContainsString('تعذّر وضع النسخة المسائية في Google Drive', $bell);
+        $this->assertStringContainsString('احذف النسخ القديمة من مجلد Google Drive', $bell);
+        $this->assertStringContainsString('نسخة واحدة', $bell);
+        $this->assertStringContainsString('rawda-backup-2026-10-01_200000-evening.zip', $bell);
     }
 
     public function test_the_application_uses_the_panel_notifier_by_default(): void

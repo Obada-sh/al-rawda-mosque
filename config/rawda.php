@@ -46,6 +46,13 @@ return [
 
         'automatic' => (bool) env('RAWDA_BACKUPS_AUTOMATIC', true),
 
+        /*
+        | Every evening a backup is put in the Google Drive folder chosen on
+        | the backups page (nothing happens until one is chosen there; the
+        | demo never does it). False stops it on this computer.
+        */
+        'drive' => (bool) env('RAWDA_BACKUPS_DRIVE', true),
+
     ],
 
 ];

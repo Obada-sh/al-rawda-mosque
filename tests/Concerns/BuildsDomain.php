@@ -6,10 +6,13 @@ use App\Actions\Activities\SaveActivity;
 use App\Actions\Attendance\RecordManualAttendance;
 use App\Actions\Enrollments\EnrollStudent;
 use App\Actions\Enrollments\TransferStudent;
+use App\Actions\Exams\OpenJuzExam;
+use App\Actions\Exams\RecordJuzExamResult;
 use App\Actions\Finance\SaveExpense;
 use App\Actions\Points\AwardManualPoints;
 use App\Actions\Recitations\RecordRecitation;
 use App\Enums\ActivityAudience;
+use App\Enums\ExamGrade;
 use App\Enums\ExpenseKind;
 use App\Exceptions\BusinessRuleViolation;
 use App\Models\Activity;
@@ -20,6 +23,7 @@ use App\Models\Course;
 use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\Expense;
+use App\Models\JuzExam;
 use App\Models\PointTransaction;
 use App\Models\Recitation;
 use App\Models\Student;
@@ -88,6 +92,30 @@ trait BuildsDomain
             'points' => $points,
             'reason' => 'مسابقة',
             'occurred_on' => $occurredOn ?? now()->toDateString(),
+        ]);
+    }
+
+    /**
+     * A juz exam of the student in this course, opened through the
+     * OpenJuzExam action and graded through RecordJuzExamResult on the
+     * given day; without a day it is left waiting.
+     */
+    protected function examine(Enrollment $enrollment, int $juz, ?string $examDate = null, ExamGrade $grade = ExamGrade::Good): JuzExam
+    {
+        $exam = app(OpenJuzExam::class)->handle([
+            'student_id' => $enrollment->student_id,
+            'juz_no' => $juz,
+            'enrollment_id' => $enrollment->getKey(),
+        ]);
+
+        if ($examDate === null) {
+            return $exam;
+        }
+
+        return app(RecordJuzExamResult::class)->handle($exam, [
+            'exam_date' => $examDate,
+            'examiner_teacher_id' => Teacher::factory()->create()->getKey(),
+            'grade' => $grade->value,
         ]);
     }
 

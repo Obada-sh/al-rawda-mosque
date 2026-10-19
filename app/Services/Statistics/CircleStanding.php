@@ -19,6 +19,8 @@ final readonly class CircleStanding
         public int $points,
         public int $attended,
         public int $sessions,
+        /** Juz passed in an exam, counted per student (see StudentStanding::$examsPassed). */
+        public int $examsPassed,
     ) {}
 
     public function attendanceRate(): ?float

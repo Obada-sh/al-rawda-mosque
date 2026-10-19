@@ -72,6 +72,12 @@ class CirclesReport extends TableWidget
                     ->alignCenter()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('exams')
+                    ->label('السبر')
+                    ->tooltip('مجموع الأجزاء التي نجح طلاب الحلقة في سبرها في الفترة')
+                    ->numeric()
+                    ->alignCenter()
+                    ->sortable(),
                 TextColumn::make('points')
                     ->label('مجموع النقاط')
                     ->numeric()
@@ -109,6 +115,7 @@ class CirclesReport extends TableWidget
                 'attendance_rate' => $circle->attendanceRate(),
                 'new_pages' => $circle->newPages,
                 'average_new_pages' => $circle->averageNewPages(),
+                'exams' => $circle->examsPassed,
                 'points' => $circle->points,
                 'average_points' => $circle->averagePoints(),
             ],

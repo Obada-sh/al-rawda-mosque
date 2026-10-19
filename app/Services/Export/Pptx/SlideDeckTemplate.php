@@ -12,6 +12,13 @@ use InvalidArgumentException;
  * placeholders such as {{circle}} and is repeated, filled in, once for
  * every item to show. The other slides stay where they are.
  *
+ * The repeated slide shows a list in one of two ways:
+ *
+ * - numbered slots ({{name1}}, {{name2}}...): a fixed number of places,
+ *   drawn one by one in the template;
+ * - a board: one cell ({{name}}...) drawn once and repeated for every item
+ *   of the list, as large as the slide allows (see SlideBoard).
+ *
  * Rendering never changes the template itself, so one template can
  * produce many presentations.
  */
@@ -42,32 +49,73 @@ final class SlideDeckTemplate
     /** Slots are numbered placeholders: {{name1}}, {{score1}}, {{place1}}, {{name2}}... */
     private const SLOT_PLACEHOLDER = '/^[a-z_]+([0-9]+)$/';
 
+    /** The size of a widescreen slide, for a presentation that does not give its own. */
+    private const WIDESCREEN = [12192000, 6858000];
+
     /**
      * @param  string  $repeatedSlide  part name of the slide that carries the placeholders
      * @param  list<string>  $placeholders  the placeholders of that slide
+     * @param  list<string>  $cellPlaceholders  the placeholders that make a cell of a board
+     * @param  Box  $slide  the size of the slides
+     * @param  int|null  $cellsPerSlide  how many cells the board of the repeated slide shows at most; null when it has no board
      */
     private function __construct(
         private readonly PptxPackage $package,
         private readonly string $repeatedSlide,
         private readonly array $placeholders,
+        private readonly array $cellPlaceholders,
+        private readonly Box $slide,
+        private readonly ?int $cellsPerSlide,
     ) {}
 
     /**
-     * @throws InvalidSlideTemplate when the file is not a presentation, or has no slide with placeholders
+     * @param  list<string>  $cellPlaceholders  the placeholders that make the cell of a board ({{name}}...); a
+     *                                          slide that holds one of them in a shape is a board
+     *
+     * @throws InvalidSlideTemplate when the file is not a presentation, has no slide with placeholders, or its
+     *                              board has no room for a single cell
      */
-    public static function open(string $path): self
+    public static function open(string $path, array $cellPlaceholders = []): self
     {
         $package = PptxPackage::open($path);
+        $cellPlaceholders = array_values(array_map('strtolower', $cellPlaceholders));
+        $size = self::slideSize($package);
 
         foreach (self::slidesInOrder($package) as $slide) {
-            $placeholders = (new SlideEditor($package->get($slide)))->placeholders();
+            $editor = new SlideEditor($package->get($slide));
+            $placeholders = $editor->placeholders();
 
             if ($placeholders !== []) {
-                return new self($package, $slide, $placeholders);
+                return new self(
+                    $package,
+                    $slide,
+                    $placeholders,
+                    $cellPlaceholders,
+                    $size,
+                    $editor->board($cellPlaceholders, $size)?->capacity(),
+                );
             }
         }
 
         throw InvalidSlideTemplate::noPlaceholders();
+    }
+
+    /**
+     * Whether the repeated slide shows its list as a board (one cell
+     * repeated for every item) rather than in numbered slots.
+     */
+    public function isBoard(): bool
+    {
+        return $this->cellsPerSlide !== null;
+    }
+
+    /**
+     * How many items one slide shows at most: the cells that fit on the
+     * board, or the numbered slots. 0 when the slide has room for none.
+     */
+    public function itemsPerSlide(): int
+    {
+        return $this->cellsPerSlide ?? $this->slots();
     }
 
     /**
@@ -129,7 +177,16 @@ final class SlideDeckTemplate
 
         foreach ($slides as $content) {
             $editor = new SlideEditor($templateXml);
-            $editor->fill($content->values);
+
+            if ($content->cells !== null) {
+                $board = $editor->board($this->cellPlaceholders, $this->slide)
+                    ?? throw new InvalidArgumentException('The template has no board to put cells on.');
+
+                $board->layOut($content->cells, $content->values);
+                $editor->fill($content->values, shrinkToFit: true);
+            } else {
+                $editor->fill($content->values);
+            }
 
             if ($content->slotPlaces !== null) {
                 $editor->keepSlots($content->slotPlaces);
@@ -184,6 +241,20 @@ final class SlideDeckTemplate
         $this->recordCounts($package);
 
         return $package->toBinary();
+    }
+
+    /**
+     * The size of the slides, from the presentation.
+     */
+    private static function slideSize(PptxPackage $package): Box
+    {
+        $size = self::query(self::load($package->get(PptxPackage::PRESENTATION)), '/p:presentation/p:sldSz')[0] ?? null;
+
+        [$width, $height] = $size === null
+            ? self::WIDESCREEN
+            : [(int) $size->getAttribute('cx'), (int) $size->getAttribute('cy')];
+
+        return $width > 0 && $height > 0 ? new Box(0, 0, $width, $height) : new Box(0, 0, ...self::WIDESCREEN);
     }
 
     /**

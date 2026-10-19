@@ -11,7 +11,7 @@ final readonly class CircleSheet
 {
     /**
      * @param  Circle  $circle  with its course, supervisor and assistant
-     * @param  list<CircleSheetLine>  $lines  by student name
+     * @param  list<SheetLine>  $lines  by student name
      */
     public function __construct(
         public Circle $circle,
@@ -25,6 +25,11 @@ final readonly class CircleSheet
 
     public function newPages(): int
     {
-        return array_sum(array_map(fn (CircleSheetLine $line): int => $line->newPages, $this->lines));
+        return array_sum(array_map(fn (SheetLine $line): int => $line->newPages, $this->lines));
+    }
+
+    public function examsPassed(): int
+    {
+        return array_sum(array_map(fn (SheetLine $line): int => $line->examsPassed(), $this->lines));
     }
 }

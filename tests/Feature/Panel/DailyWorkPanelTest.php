@@ -14,7 +14,9 @@ use App\Filament\Resources\Attendances\Pages\ManageAttendances;
 use App\Filament\Resources\JuzExams\Pages\ManageJuzExams;
 use App\Filament\Resources\PointTransactions\Pages\ManagePointTransactions;
 use App\Filament\Resources\Recitations\Pages\ManageRecitations;
+use App\Filament\Support\Attendance\BulkAttendanceAction;
 use App\Models\Attendance;
+use App\Models\Circle;
 use App\Models\Course;
 use App\Models\JuzExam;
 use App\Models\PointTransaction;
@@ -22,6 +24,7 @@ use App\Models\Recitation;
 use App\Models\Student;
 use App\Models\Teacher;
 use Filament\Actions\Testing\TestAction;
+use Filament\Forms\Components\CheckboxList;
 use Livewire\Livewire;
 
 /**
@@ -126,6 +129,110 @@ class DailyWorkPanelTest extends PanelTestCase
             ->assertSet('result.message', 'بطاقة غير معروفة');
 
         $this->assertSame(0, Attendance::query()->count());
+    }
+
+    public function test_the_desk_records_cards_for_an_earlier_day_and_says_so(): void
+    {
+        $enrollment = $this->enroll(course: Course::factory()->meetingOn([Weekday::Monday, Weekday::Wednesday])->create());
+
+        Livewire::test(ScanAttendance::class)
+            ->assertSet('day', '2026-10-07')
+            ->assertDontSee('تُسجَّل البطاقات الآن ليوم')
+            ->set('day', '2026-10-05')
+            ->assertDispatched('scan-day-changed')
+            ->assertSee('تُسجَّل البطاقات الآن ليوم')
+            ->assertSee('05/10/2026')
+            ->set('cardCode', $enrollment->card_code)
+            ->call('scan')
+            ->assertSet('result.tone', 'success')
+            ->assertSet('result.message', 'تم تسجيل الحضور ليوم 05/10/2026')
+            // Read today, for Monday: the list of today's cards says for which day.
+            ->assertSee('ليوم 05/10/2026')
+            ->call('backToToday')
+            ->assertSet('day', '2026-10-07')
+            ->assertDontSee('تُسجَّل البطاقات الآن ليوم');
+
+        $this->assertSame('2026-10-05', Attendance::query()->sole()->session->session_date->toDateString());
+    }
+
+    public function test_the_desk_refuses_a_day_to_come_or_no_day_at_all(): void
+    {
+        $enrollment = $this->enroll();
+
+        Livewire::test(ScanAttendance::class)
+            ->set('day', '2026-10-09')
+            ->set('cardCode', $enrollment->card_code)
+            ->call('scan')
+            ->assertSet('result.tone', 'danger')
+            ->assertSet('result.message', 'لا يمكن تسجيل حضور بتاريخ في المستقبل.')
+            ->assertSet('cardCode', '')
+            ->set('day', null)
+            ->set('cardCode', $enrollment->card_code)
+            ->call('scan')
+            ->assertSet('result.message', 'اختر تاريخ الحضور قبل مسح البطاقات.');
+
+        $this->assertSame(0, Attendance::query()->count());
+    }
+
+    public function test_an_exceptional_session_is_opened_on_the_day_of_the_desk(): void
+    {
+        $enrollment = $this->enroll(course: Course::factory()->meetingOn([Weekday::Friday])->create());
+
+        Livewire::test(ScanAttendance::class)
+            ->set('day', '2026-10-05')
+            ->set('cardCode', $enrollment->card_code)
+            ->call('scan')
+            ->assertSet('result.message', 'يوم 05/10/2026 ليس يوم دوام لهذه الدورة')
+            ->assertSet('refusedDay', '2026-10-05')
+            ->assertSee('فتح جلسة استثنائية يوم 05/10/2026 وتسجيل الحضور')
+            ->call('openExceptionalSession')
+            ->assertSet('result.tone', 'success');
+
+        $this->assertSame('2026-10-05', Attendance::query()->sole()->session->session_date->toDateString());
+    }
+
+    public function test_many_students_are_marked_present_at_once(): void
+    {
+        $course = Course::factory()->create();
+        $first = Circle::factory()->create(['course_id' => $course->getKey(), 'name' => 'حلقة أ']);
+        $second = Circle::factory()->create(['course_id' => $course->getKey(), 'name' => 'حلقة ب']);
+        $sami = $this->enroll(Student::factory()->create(['full_name' => 'سامي']), $course, $first);
+        $ahmad = $this->enroll(Student::factory()->create(['full_name' => 'أحمد']), $course, $first);
+        $khalid = $this->enroll(Student::factory()->create(['full_name' => 'خالد']), $course, $second);
+
+        // The names of the course, with their circles; or of one circle.
+        Livewire::test(ManageAttendances::class)
+            ->mountAction(BulkAttendanceAction::NAME)
+            ->fillForm(['course_id' => $course->getKey()])
+            ->assertFormFieldExists('enrollment_ids', fn (CheckboxList $field): bool => $field->getOptions() === [
+                $ahmad->getKey() => 'أحمد — حلقة أ',
+                $khalid->getKey() => 'خالد — حلقة ب',
+                $sami->getKey() => 'سامي — حلقة أ',
+            ])
+            ->fillForm(['circle_id' => $first->getKey()])
+            ->assertFormFieldExists('enrollment_ids', fn (CheckboxList $field): bool => $field->getOptions() === [
+                $ahmad->getKey() => 'أحمد',
+                $sami->getKey() => 'سامي',
+            ]);
+
+        Livewire::test(ManageAttendances::class)
+            ->callAction(BulkAttendanceAction::NAME, data: [
+                'course_id' => $course->getKey(),
+                'attended_on' => '2026-10-05',
+                'enrollment_ids' => [$sami->getKey(), $ahmad->getKey()],
+                'card_codes' => "{$khalid->card_code}\n0000000000",
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('سُجّل حضور 3 طلاب ليوم 05/10/2026');
+
+        $this->assertSame(3, Attendance::query()->count());
+
+        Livewire::test(ManageAttendances::class)
+            ->callAction(BulkAttendanceAction::NAME, data: ['course_id' => $course->getKey(), 'attended_on' => '2026-10-05', 'enrollment_ids' => [], 'card_codes' => ''])
+            ->assertHasActionErrors(['enrollment_ids', 'card_codes']);
+
+        // The scan desk offers it too.
+        Livewire::test(ScanAttendance::class)->assertActionVisible(BulkAttendanceAction::NAME);
     }
 
     public function test_attendance_is_added_by_hand_for_any_past_day_and_can_be_deleted(): void

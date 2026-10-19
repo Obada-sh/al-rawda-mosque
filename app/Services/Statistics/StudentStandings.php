@@ -2,6 +2,8 @@
 
 namespace App\Services\Statistics;
 
+use App\Enums\ExamGrade;
+use App\Enums\ExamStatus;
 use App\Enums\SessionStatus;
 use App\Models\Enrollment;
 use App\Models\Student;
@@ -12,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * The figures of every student in the scope of a report: attendance,
- * pages and points, one row per student in a course.
+ * pages, points and juz exams, one row per student in a course.
  *
  * Every other report (circles, courses, totals, rankings, the slides) is
  * built from these rows, so their numbers always add up.
@@ -38,8 +40,19 @@ final class StudentStandings
      */
     public function forStudent(Student $student): Collection
     {
+        return $this->forStudents([$student->getKey()]);
+    }
+
+    /**
+     * What some students did in each of their courses, since the beginning.
+     *
+     * @param  list<int>  $studentIds
+     * @return Collection<int, StudentStanding> keyed by enrollment id
+     */
+    public function forStudents(array $studentIds): Collection
+    {
         return $this->standings(
-            Enrollment::query()->where('enrollments.student_id', $student->getKey()),
+            Enrollment::query()->whereIn('enrollments.student_id', $studentIds),
             new ReportFilter,
         )->keyBy('enrollmentId');
     }
@@ -58,6 +71,7 @@ final class StudentStandings
                 'report_points' => $this->sumOf('point_transactions', 'points', 'occurred_on', $filter),
                 'report_attended' => $this->attendedSessions($filter),
                 'report_sessions' => $this->heldSessions($filter),
+                'report_exams' => $this->passedExams($filter),
             ])
             ->orderBy(Student::query()->select('full_name')->whereColumn('students.id', 'enrollments.student_id'))
             ->orderBy('enrollments.id')
@@ -76,6 +90,7 @@ final class StudentStandings
                 points: (int) $enrollment->getAttribute('report_points'),
                 attended: (int) $enrollment->getAttribute('report_attended'),
                 sessions: (int) $enrollment->getAttribute('report_sessions'),
+                examsPassed: (int) $enrollment->getAttribute('report_exams'),
             ))
             ->values();
     }
@@ -90,6 +105,25 @@ final class StudentStandings
             ->whereColumn("{$table}.enrollment_id", 'enrollments.id');
 
         $filter->applyPeriod($query, "{$table}.{$dateColumn}");
+
+        return $query;
+    }
+
+    /**
+     * The juz the student passed an exam of in the period, among the exams
+     * attributed to this course. A juz examined twice counts once; an exam
+     * still waiting, or graded «إعادة», is not a pass.
+     */
+    private function passedExams(ReportFilter $filter): Builder
+    {
+        $query = DB::table('juz_exams')
+            ->selectRaw('COUNT(DISTINCT juz_exams.juz_no)')
+            ->whereColumn('juz_exams.enrollment_id', 'enrollments.id')
+            ->where('juz_exams.status', ExamStatus::Done->value)
+            ->whereNotNull('juz_exams.grade')
+            ->where('juz_exams.grade', '!=', ExamGrade::Retake->value);
+
+        $filter->applyPeriod($query, 'juz_exams.exam_date');
 
         return $query;
     }

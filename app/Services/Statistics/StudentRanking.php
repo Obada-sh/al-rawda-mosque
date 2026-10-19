@@ -7,8 +7,9 @@ use App\Support\Ranking;
 use Illuminate\Support\Collection;
 
 /**
- * Orders students by points, by new pages or by attendance, and gives
- * each one a place. Students with the same score share a place.
+ * Orders students by points, by new pages, by attendance or by the juz
+ * they passed an exam of, and gives each one a place. Students with the
+ * same score share a place.
  */
 final class StudentRanking
 {
@@ -40,6 +41,7 @@ final class StudentRanking
             RankingCriterion::Points => (float) $standing->points,
             RankingCriterion::NewPages => (float) $standing->newPages,
             RankingCriterion::Attendance => $standing->attendanceRate() ?? -1.0,
+            RankingCriterion::Exams => (float) $standing->examsPassed,
         };
     }
 }

@@ -11,10 +11,10 @@ use App\Filament\Enums\PanelGroup;
 use App\Filament\Support\Attempt;
 use App\Filament\Support\Download;
 use App\Filament\Support\Fields\FileToCheck;
-use App\Http\Requests\Export\LeadersSlidesRequest;
 use App\Http\Requests\Export\SlideTemplateRequest;
-use App\Services\Export\ExportedFile;
 use App\Services\Export\LeadersTemplates;
+use App\Services\Export\Pptx\SlideDeckTemplate;
+use App\Support\ArabicNoun;
 use App\Support\SettingKey;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -89,12 +89,13 @@ class ManageSettings extends Page
                             ->markAsRequired(),
                     ]),
                 Section::make('شرائح أوائل الحلقات')
-                    ->description('التصميم الذي تُكتب عليه أسماء الأوائل عند تصدير ملف PowerPoint من صفحتي الإحصائيات والفارس القرآني.')
+                    ->description('التصميم الذي تُكتب عليه أسماء طلاب الحلقات عند تصدير ملف PowerPoint من صفحتي الإحصائيات والفارس القرآني.')
                     ->schema([
                         Text::make(fn (LeadersTemplates $templates): string => self::templateInUse($templates))
                             ->weight('bold'),
                         Text::make('لتصميم شرائحك الخاصة: نزّل التصميم الافتراضي من زر «قالب شرائح الأوائل» أعلى الصفحة، وغيّر في PowerPoint ما تشاء من الألوان والخطوط والخلفية، ثم ارفعه من الزر نفسه.'),
                         Text::make(self::placeholdersGuide()),
+                        Text::make(self::boardGuide()),
                     ]),
             ]);
     }
@@ -136,31 +137,18 @@ class ManageSettings extends Page
                             ->label('ملف القالب'),
                     ])
                     ->action(function (array $data, Action $action, SaveLeadersTemplate $saveTemplate): void {
-                        $slots = Attempt::action($action, fn (): int => $saveTemplate->handle($data));
+                        $template = Attempt::action($action, fn (): SlideDeckTemplate => $saveTemplate->handle($data));
 
                         Notification::make()
                             ->title('تم اعتماد قالبك')
-                            ->body("يتسع لـ {$slots} من الأوائل في الشريحة.")
+                            ->body(self::capacityOf($template))
                             ->success()
                             ->send();
                     }),
                 Action::make('downloadDefaultLeadersTemplate')
                     ->label('تنزيل التصميم الافتراضي')
                     ->icon(Heroicon::OutlinedArrowDownTray)
-                    ->modalHeading('تنزيل التصميم الافتراضي')
-                    ->modalDescription('لكل عدد من الأوائل تصميم يناسبه. اختر العدد الذي ستعرضه في الشريحة.')
-                    ->modalSubmitActionLabel('تنزيل')
-                    ->fillForm(['leaders' => LeadersSlidesRequest::DEFAULT_TOP])
-                    ->schema([
-                        TextInput::make('leaders')
-                            ->label('عدد الأوائل في الشريحة')
-                            ->inputMode('numeric')
-                            ->helperText('من 1 إلى '.LeadersTemplates::MAX_LEADERS.'.')
-                            ->markAsRequired(),
-                    ])
-                    ->action(fn (array $data, Action $action, DownloadLeadersTemplate $download): StreamedResponse => Download::of(
-                        Attempt::action($action, fn (): ExportedFile => $download->default($data)),
-                    )),
+                    ->action(fn (DownloadLeadersTemplate $download): StreamedResponse => Download::of($download->default())),
                 Action::make('downloadCustomLeadersTemplate')
                     ->label('تنزيل قالبي الحالي')
                     ->icon(Heroicon::OutlinedDocumentArrowDown)
@@ -205,14 +193,26 @@ class ManageSettings extends Page
      */
     private static function placeholdersGuide(): HtmlString
     {
-        $code = fn (string $placeholder): string => '<code dir="ltr">{{'.$placeholder.'}}</code>';
-
         return new HtmlString(
-            'اترك الخانات كما هي، فالنظام يكتب مكان '.$code('circle').' اسم الحلقة، ومكان '.$code('supervisor_line')
-            .' مشرفها، ومكان '.$code('place1').' و'.$code('name1').' و'.$code('score1')
-            .' مرتبة الأول واسمه ورقمه، وهكذا لبقية الأوائل. وتتوفر أيضاً '.$code('mosque').' و'.$code('course')
-            .' و'.$code('period').' و'.$code('criterion').'.',
+            'اترك الخانات كما هي، فالنظام يكتب مكان '.self::code('title').' عنوان الشريحة (مثل «نقاط حلقة الفرقان»)، ومكان '
+            .self::code('name').' اسم الطالب، ومكان '.self::code('value').' رقمه (صفحاته أو نقاطه أو أيام حضوره أو أجزاء سبره). '
+            .'وتتوفر أيضاً '.self::code('score').' (الرقم مع وحدته) و'.self::code('place').' (المرتبة) و'.self::code('circle')
+            .' و'.self::code('supervisor_line').' و'.self::code('course').' و'.self::code('period').' و'.self::code('mosque').'.',
         );
+    }
+
+    private static function boardGuide(): HtmlString
+    {
+        return new HtmlString(
+            'خانة الطالب ('.self::code('name').' و'.self::code('value').' وما يحيط بهما) تُرسم مرة واحدة، فيكرّرها النظام لكل طالب ويكبّرها أو يصغّرها لتملأ المساحة. '
+            .'المساحة هي الشكل المسمّى <code dir="ltr">cells</code> (لا يظهر في الشرائح)، ويُضَمّ إلى الخانة كل شكل يبدأ اسمه بـ <code dir="ltr">cell</code>. '
+            .'والقوالب القديمة ذات الأماكن المرقّمة ('.self::code('name1').' و'.self::code('name2').'...) ما زالت تعمل: يملؤها الطلاب بالترتيب وتُضاف شرائح للبقية.',
+        );
+    }
+
+    private static function code(string $placeholder): string
+    {
+        return '<code dir="ltr">{{'.$placeholder.'}}</code>';
     }
 
     private static function templateInUse(LeadersTemplates $templates): string
@@ -221,10 +221,22 @@ class ManageSettings extends Page
             return 'المستعمل الآن: التصميم الافتراضي.';
         }
 
-        $slots = $templates->customSlots();
+        $template = $templates->custom();
 
-        return $slots === null
+        return $template === null
             ? 'المستعمل الآن: قالبك الخاص، لكن ملفه لم يعد يُقرأ. ارفعه من جديد أو عد إلى التصميم الافتراضي.'
-            : "المستعمل الآن: قالبك الخاص، ويتسع لـ {$slots} من الأوائل في الشريحة.";
+            : 'المستعمل الآن: قالبك الخاص. '.self::capacityOf($template);
+    }
+
+    /**
+     * How many students one slide of a template shows.
+     */
+    private static function capacityOf(SlideDeckTemplate $template): string
+    {
+        $students = ArabicNoun::student()->count($template->itemsPerSlide());
+
+        return $template->isBoard()
+            ? "يرتّب طلاب الحلقة في الشريحة بحجم يناسب عددهم، حتى {$students} في الشريحة الواحدة."
+            : "أماكنه المرقّمة تتسع لـ {$students} في الشريحة، ويُكمَل بقية الطلاب في شرائح تالية.";
     }
 }

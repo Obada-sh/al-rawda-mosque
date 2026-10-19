@@ -3,7 +3,7 @@
 namespace App\Services\Statistics;
 
 /**
- * The best students of one circle in a period.
+ * The students of one circle in a period, best first.
  */
 final readonly class CircleLeaderboard
 {

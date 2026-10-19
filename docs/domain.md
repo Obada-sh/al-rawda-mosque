@@ -80,7 +80,7 @@ Only the **name** is needed to register a student. `is_profile_complete` is reco
 
 A student with history is **archived** (`archived_at`), never deleted. Only a student with no record at all can be deleted (`DeleteStudent`).
 
-A **photo** is optional and says nothing about whether the profile is complete. The picture is a file in the private folder `student-photos` (`Services\Students\StudentPhotos`), `students.photo_path` holds its name, and only the signed-in admin is handed it (`StudentPhotoController`). The form cuts it square and shrinks it in the browser; `SaveStudent` checks that the file really is a JPG, PNG or WebP by looking inside it (`Support\PictureFile`, no image extension of PHP needed). Every new photo gets a new file name, so its address changes and no browser shows the old one. It appears in the students list (once any student has one), in the student's file, in the answer of the scan screen and on the printed card.
+A **photo** is optional and says nothing about whether the profile is complete. The picture is a file in the private folder `student-photos` (`Services\Students\StudentPhotos`), `students.photo_path` holds its name, and only the signed-in admin is handed it (`StudentPhotoController`). The form (`Filament\Support\Fields\PhotoUpload`) opens an editor on the chosen picture with a circle of the card's proportions over it: the admin moves and zooms the picture until the face is in the circle, and what is inside it is what the card shows (the card's frame is the circle inscribed in its square). The browser then sends the square, at most 500 px; `SaveStudent` checks that the file really is a JPG, PNG or WebP by looking inside it (`Support\PictureFile`, no image extension of PHP needed). Every new photo gets a new file name, so its address changes and no browser shows the old one. It appears in the students list (once any student has one), in the student's file, in the answer of the scan screen and on the printed card.
 
 The other pictures are kept the same way, each in a folder of its own (`Services\Files\KeptPictures` holds what they share): the **teacher's photo** (`teacher-photos`, `TeacherPhotos`, `teachers.photo_path`, handed out by `TeacherPhotoController`) the **circle's logo** (`circle-logos`, `CircleLogos`, `circles.logo_path`, `CircleLogoController`) and the **picture of a market's item** (`market-items`, `MarketItemPictures`, `market_items.image_path`, `MarketItemPictureController`). A folder only ever reads or removes names of its own form, so one kind of picture can never touch another.
 
@@ -111,12 +111,15 @@ The USB scanner behaves like a keyboard: it types the digits of the card and pre
 | `recorded` | attendance saved, points awarded |
 | `already_recorded` | the same card again today |
 | `unknown_card` | no enrollment has this code |
-| `inactive_enrollment` | the student left the course or is archived |
-| `course_not_running` | the course is finished or today is outside its dates |
-| `not_scheduled_day` | today is not a class day; the screen offers to open an exceptional session (`ScanIntoExceptionalSession`) |
-| `session_cancelled` | today's session was cancelled |
+| `inactive_enrollment` | the student had left the course on the day, or is archived |
+| `before_enrollment` | the day is before the student joined the course |
+| `course_not_running` | the course is finished or the day is outside its dates |
+| `not_scheduled_day` | the day is not a class day; the screen offers to open an exceptional session (`ScanIntoExceptionalSession`) |
+| `session_cancelled` | the day's session was cancelled |
 
-A scan is always for **today**. Attendance for another date is added by hand (`RecordManualAttendance`), earns the same points, and opens that day's session if needed.
+A scan is for **today**, unless the admin sets the desk to an earlier day (the date at the top of the scan page, checked by `ScanDayRequest`, never in the future): the cards are then recorded for that day, by the same rules as today's, and the desk says so in a yellow band until it is set back (opening the page again sets it back too). `scanned_at` keeps when the card was read; the session is the day's. The answers name the day ("تم تسجيل الحضور ليوم 05/10/2026": `ScanStatus::label($day)`), the list of today's cards marks those read for another day, and the student's file shows a time only for a card read on its own day.
+
+Attendance for one student on any date is added by hand (`RecordManualAttendance`), earns the same points, and opens that day's session if needed. **Many students at once** (`RecordBulkAttendance`, the window «حضور جماعي» on the scan desk and the attendance register, `Filament\Support\Attendance\BulkAttendanceAction`): a course, a day, and students ticked by name (a circle at a time, or all) or card numbers typed or scanned into one box (`BulkAttendanceRequest`). Each student goes through `RecordManualAttendance`, so its rules and points apply and one refusal never stops the others; `BulkAttendanceResult` says who was recorded, who already was, and why the others were not (a rule of the day, another course, an unknown number, a teacher's card).
 
 Card codes are 10 random digits (`NumericCardCodeGenerator`): digits survive an Arabic keyboard layout, and random codes cannot be guessed from the next card.
 
@@ -224,16 +227,36 @@ A course holds as many **markets** (سوق النقاط) as it likes; each offer
 
 ## Statistics, rankings and slides
 
-All in `app/Services/Statistics`. The base is `StudentStandings`: one row per student in a course with attendance, pages and points, computed in a single query for a `ReportFilter` (course, circle, period). Circles, courses, totals and rankings are sums or orderings of those rows, so the numbers of different reports always agree.
+All in `app/Services/Statistics`. The base is `StudentStandings`: one row per student in a course with attendance, pages, points and juz exams, computed in a single query for a `ReportFilter` (course, circle, period). Circles, courses, totals and rankings are sums or orderings of those rows, so the numbers of different reports always agree.
 
 - A circle's figures are the sum of what its **current** students did, including what they did before being moved to it.
+- **Exams** (`StudentStanding::$examsPassed`, السبر): the juz the student passed an exam of in the period, among the exams attributed to the course (`juz_exams.enrollment_id`). A juz counts once however often it was examined; an exam waiting, or graded `retake`, is not a pass. An exam opened by hand without a course counts in no course. The statistics page shows it per student, circle and course, in the totals, and ranks by it (`RankingCriterion::Exams`).
 - `Support\Ranking`: equal scores share a place (1, 1, 3).
 - `QuranKnight` (الفارس القرآني): who recited the most **new** pages in a period, in the mosque, a course or a circle.
-- `CircleLeaders`: the best N students of each circle, by new pages or by points. This is what the slides show. Its doc comment lists the tie-breaking rules.
+- `CircleLeaders`: the students of each circle (or of one), best first, by new pages, points, attendance or exams; all of them, or the first N that have something to show. This is what the slides show. Attendance is ranked by its **rate** (a student who joined late is not behind for the sessions before he joined) and shows the sessions attended. Its doc comment lists the tie-breaking rules.
 
-**Slides.** `Actions\Export\ExportLeadersSlides` fills a PowerPoint template, one slide per circle, set to advance and loop by themselves. The template is a `.pptx` with one slide carrying placeholders such as `{{circle}}`, `{{name1}}`, `{{score1}}`; `Services\Export\LeadersSlides` lists them all. Shapes named `slot2`, `slot3`, ... are removed when the circle has fewer leaders. The default designs are `resources/pptx/leaders-1.pptx` to `leaders-10.pptx`; the admin can upload their own from the settings page, and it then travels with every backup.
+**Slides.** `Actions\Export\ExportLeadersSlides` fills a PowerPoint template, one slide per circle (or for one circle only), set to advance and loop by themselves. The template is a `.pptx` with one slide carrying placeholders; `Services\Export\LeadersSlides` lists them all (`{{title}}`, `{{circle}}`, `{{period}}`... and, for a student, `{{name}}`, `{{value}}`, `{{score}}`, `{{unit}}`, `{{place}}`). The slide shows its students in one of two ways (`Pptx\SlideDeckTemplate`):
+
+- **a board** (the default design, `resources/pptx/leaders.pptx`, the mosque's own design): the student placeholders are written once, in a **cell** (every shape holding one of them, and every shape whose name starts with `cell`). `Pptx\SlideBoard` repeats the cell for every student, right to left then down, in the area of the shape named `cells` (not drawn), as large as the area allows (`Pptx\BoardLayout`: between 0.5 and 1.5 times the size of the cell in the template, keeping its proportions). The text written into a shape is made smaller where it would not fit, down to 60% of its size, possibly on a second line (`Pptx\TextFitter`, `Pptx\TextWidth`: PowerPoint does not shrink text on opening a file). A circle with more students than one slide holds (about 35 with the default design) is shared evenly between slides, and its title says "(1/2)";
+- **numbered places** (`{{name1}}`, `{{name2}}`...: older designs of the admin): the students fill the places in order and the others go on more slides. Shapes named `slot2`, `slot3`, ... are removed when the slide has fewer students.
+
+The admin can upload their own design from the settings page (`SaveLeadersTemplate` checks it can give slides: placeholders, students, room for a cell), and it then travels with every backup.
 
 `Services\Export\Pptx` edits the `.pptx` directly (a ZIP of XML files) with PHP's `ZipArchive`. There is no PowerPoint library.
+
+## Printed documents
+
+On A4 under the mosque's logo (see docs/architecture.md for how they are drawn):
+
+- **The student's file** (`PrepareStudentFile`): the details, then for each course (or the one chosen) the figures, every recitation and every held session, attended or not.
+- **The list of a circle's students** (`PrepareCircleSheets`, «كشف الطلاب»): the current students of the circle with the columns the admin ticks (`SheetOptions`: phones, pages, exams, attendance; in the address of the page each is a flag, and a column not named is shown). Their records are those of the course of the circle, or with `history=all` everything since they joined the system: the sheet a teacher is given for the new students of a new course.
+  - **Pages**: how many and which, written short ("1–20، 25": `Support\PageRanges`). In the course: the pages first memorized by a recitation of this enrollment (`student_pages.recitation_id`); in every course: all of the student's `student_pages`, and the pages memorized before the system (`prior_memorized_pages`).
+  - **Exams**: one mark per juz, the grade of its last exam or «بانتظار السبر» (`SheetExam`); the footer counts the juz passed.
+  - **Attendance**: sessions attended of those held while in the course (in every course: summed).
+- **The attendance codes of a circle**: each student's name over the QR of their card, 15 to a page.
+- **The list of the mosque's students** (`PrepareMosqueSheet`, «كشف كل طلاب الجامع», `MosqueSheetRequest`): one table by name, without choosing a circle, with a column for each student's circle and the same columns as the circle's list. `history=all`: every student in the system, also those in no course yet, with everything since they joined; the circle is the one of their enrollments they did not leave in the running courses («—» when none; both when two running courses); archived students only with `archived=1` (marked «ملفه مؤرشف»). `history=course` + `course_id`: the students of that course who did not leave it, from all its circles, with what they did in it.
+
+Both lists build their records with `SheetRecords` (`inCourse()` by enrollment, `sinceJoining()` by student → `StudentRecord`) and print a `SheetLine` per student through the same table (`documents/partials/students-table`).
 
 ## Finance
 
@@ -260,7 +283,17 @@ files/...       the files that are not in the database (see below)
 
 The files are everything in five folders of the private disk (`Services\Backup\KeptFiles`): `slide-templates` (the admin's own slide design), `student-photos`, `teacher-photos`, `circle-logos` and `market-items`. A restore makes those folders hold exactly what the backup has; a file of any other folder in an older backup (the retired `card-design`) is left out. Photos make a backup larger: about the size of the photos themselves, in every backup.
 
-The file name says when and why: `rawda-backup-2026-10-07_170000-auto.zip`. Kinds (`Enums\BackupKind`): `auto` (daily, the newest 30 are kept), `manual`, `before-restore`, `before-update`, `uploaded`.
+The file name says when and why: `rawda-backup-2026-10-07_170000-auto.zip`. Kinds (`Enums\BackupKind`): `auto` (daily, the newest 30 are kept), `manual`, `before-restore`, `before-update`, `uploaded`, `evening` (the copy for Google Drive, below).
+
+### The evening copy for Google Drive
+
+The system never talks to Google. The admin installs **Google Drive for desktop** on the laptop and names, on the backups page, a folder of it (`G:\My Drive\…`); the program sends what is put there to Drive whenever the internet is there. Nothing to sign in to, no key that expires, no network in a request.
+
+- **Set-up** (`SaveDriveCopySettings`, `DriveCopyRequest`): the folder (empty = off), the folder's address on drive.google.com (optional, `https://drive.google.com/…`), the time (H:i, default 20:00) and the days kept (1–60, default 7). The folder must be a full path, exist now, be writable (a probe file is written and removed) and lie outside the system's folder and the backups folder (`drive.folder_*` rules). Stored in the settings (`SettingKey::DRIVE_*`, owned by `Services\Backup\DriveCopySetup`); saving clears the record of failures.
+- **The copy** (`CopyBackupToDrive`): checks the folder first (no backup for a missing folder), takes an `evening` backup in the backups folder, copies it to `<name>.zip.part` in the Drive folder, compares SHA-256, then renames it to its name (`Services\Backup\DriveFolder::put`), so the program never sends a half-written file under that name. Then it removes the `evening` copies taken before the first day kept (`DriveCopySettings::keptFrom`: the last N days, today included) from the Drive folder and from the backups folder, and leftover `.part` pieces of evening copies. Nothing else in the Drive folder is ever touched. Each attempt is noted (`DriveCopyState`: last copy, last failure after it).
+- **When** (`GuardEveningDriveCopy`): due when no copy was put there since the last time it was due (`DriveCopySettings::lastDueAt`: today at the time once it has come, else yesterday at the time), so a laptop that was off that evening copies at its next use. After a failure, the next try waits 30 minutes; the admin is told once a day (`AdminNotifier::driveCopyFailed`), and once a day of old copies that could not be removed (`driveCopiesNotRemoved`, for them to remove by hand). A cache lock keeps two copies from running at once.
+- **Trigger**: the system has no scheduler. `Http\Middleware\TakeEveningDriveCopy` runs the guard after a GET page of the panel was sent; every page of the signed-in admin ticks `GET /admin/tick` (`TickController`, 204) every five minutes while the copy is on (`filament/partials/tick`), so an open page is enough. `rawda.backups.drive` (`RAWDA_BACKUPS_DRIVE`) turns it off on a computer; the tests turn it off; **the demo never copies** (`drive.demo`), since its folder setting would otherwise make it remove the real evening copies.
+- The copy blocks the single-threaded `php -S` server for the seconds a backup takes, once a day.
 
 **Restore** (`Actions\Backups\RestoreBackup`) is careful twice: `BackupInspector` checks the file from end to end before anything is touched (fingerprints, every SQL line, and that it was not made by a newer version), and a `before-restore` backup of the present state is taken first and put back if the restore fails half-way. After loading, the migrations the backup did not have are run, which is why **a shipped migration must never be edited**.
 
@@ -276,7 +309,7 @@ Table `settings`, read through `SettingsStore`, keys in `Support\SettingKey`: th
 
 ## The mosque's logo
 
-The logo is one file of the application, `public/img/logo.png` (see-through background), read through `Support\Brand` with the mosque's name. It is on every page of the panel and above the sign-in form (the panel's brand), at the top of the home page (`Widgets\MosqueBanner`), on the letterhead of every report (`Widgets\Reports\Letterhead`: the report, what its filter covers, the day; a report prints with it, without the menu and the filter), on the setup page, on the card print page, baked into the card, and in the default slide templates (run `resources/pptx/build-default-templates.js` again after changing the logo). `public/img/favicon.png` is the browser tab's icon.
+The logo is one file of the application, `public/img/logo.png` (see-through background), read through `Support\Brand` with the mosque's name. It is on every page of the panel and above the sign-in form (the panel's brand), at the top of the home page (`Widgets\MosqueBanner`), on the letterhead of every report (`Widgets\Reports\Letterhead`: the report, what its filter covers, the day; a report prints with it, without the menu and the filter), on the setup page, on the card print page, baked into the card, and in the default slide template (`resources/pptx/leaders.pptx`, a picture of the slide: replace it there in PowerPoint after changing the logo). `public/img/favicon.png` is the browser tab's icon.
 
 ## Open questions from the plan
 

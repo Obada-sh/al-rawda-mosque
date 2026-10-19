@@ -1,8 +1,8 @@
 # Rawda developer guide
 
-Rawda is the management system of a mosque's Quran school: students, courses and circles, attendance by QR card, recitation and juz exams, points, statistics, the "Quran Knight" ranking, PowerPoint slides of the best students, expenses and backups.
+Rawda is the management system of a mosque's Quran school: students, courses and circles, attendance by QR card, recitation and juz exams, points, statistics, the "Quran Knight" ranking, PowerPoint slides of the best students, printed sheets, expenses and backups (with an evening copy for Google Drive).
 
-It runs on **one Windows laptop, offline**, for **one admin**. Those two facts explain most of its design: there is no queue, no scheduler, no mail, no roles, and nothing is loaded from the internet.
+It runs on **one Windows laptop, offline**, for **one admin**. Those two facts explain most of its design: there is no queue, no scheduler, no mail, no roles, and nothing is loaded from the internet (the evening copy for Google Drive is only put in a folder: the Google Drive program sends it).
 
 The guide for the people who *use* the system is the Arabic [README](../README.md) in the root of the project. This folder is for the people who *change* it.
 
@@ -27,7 +27,7 @@ The guide for the people who *use* the system is the Arabic [README](../README.m
 | PHPUnit | 12 | |
 | bacon/bacon-qr-code | 3 | QR codes as SVG, no image extension needed |
 
-There is no Node build. The styles of the project are plain CSS files in `public/css`, and Filament publishes its own scripts and styles into `public`. Node is only needed to regenerate the default slide designs (`resources/pptx/build-default-templates.js`), which are committed.
+There is no Node build. The styles of the project are plain CSS files in `public/css`, and Filament publishes its own scripts and styles into `public`. The default slide design (`resources/pptx/leaders.pptx`) is the mosque's own PowerPoint file, edited in PowerPoint.
 
 ## The project in one page
 
@@ -45,7 +45,7 @@ config/rawda.php     settings that belong to the computer (folders, demo port)
 database/            migrations, the two seeders of a new database, the demo seeder
 deploy/              what start.bat, demo.bat and update.bat share
 docs/                this guide
-resources/pptx/      the default slide designs
+resources/pptx/      the default slide design
 tests/               Unit (no database) and Feature (MySQL), Feature/Panel drives the screens
 start.bat            starts the real system        http://127.0.0.1:8000
 demo.bat             starts the demo               http://127.0.0.1:8010

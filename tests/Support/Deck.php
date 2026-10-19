@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use DOMDocument;
+use DOMElement;
 use DOMXPath;
 use RuntimeException;
 use ZipArchive;
@@ -125,9 +126,67 @@ final class Deck
     }
 
     /**
-     * @return list<\DOMElement>
+     * The shapes drawn straight on a slide (not inside a group), in
+     * drawing order: where each stands, what it says and the sizes of its
+     * text (in hundredths of a point).
+     *
+     * @return list<array{name: string, id: int, x: int, y: int, width: int, height: int, text: string, sizes: list<int>}>
+     */
+    public function drawn(int $slide): array
+    {
+        $xpath = $this->xpath($this->slide($slide));
+        $first = function (string $expression, DOMElement $shape) use ($xpath): ?DOMElement {
+            $node = $xpath->query($expression, $shape)?->item(0);
+
+            return $node instanceof DOMElement ? $node : null;
+        };
+
+        $shapes = [];
+
+        foreach ($xpath->query('/p:sld/p:cSld/p:spTree/*[*[1]/p:cNvPr]') ?: [] as $shape) {
+            $properties = $first('./*[1]/p:cNvPr', $shape);
+            $offset = $first('.//a:xfrm/a:off | ./p:xfrm/a:off', $shape);
+            $extent = $first('.//a:xfrm/a:ext | ./p:xfrm/a:ext', $shape);
+            $sizes = [];
+
+            foreach ($xpath->query('.//a:rPr[@sz]', $shape) ?: [] as $run) {
+                $sizes[] = (int) $run->getAttribute('sz');
+            }
+
+            $shapes[] = [
+                'name' => (string) $properties?->getAttribute('name'),
+                'id' => (int) $properties?->getAttribute('id'),
+                'x' => (int) $offset?->getAttribute('x'),
+                'y' => (int) $offset?->getAttribute('y'),
+                'width' => (int) $extent?->getAttribute('cx'),
+                'height' => (int) $extent?->getAttribute('cy'),
+                'text' => trim($shape->textContent),
+                'sizes' => $sizes,
+            ];
+        }
+
+        return $shapes;
+    }
+
+    /**
+     * The shapes of a slide that have a name, in drawing order.
+     *
+     * @return list<array{name: string, id: int, x: int, y: int, width: int, height: int, text: string, sizes: list<int>}>
+     */
+    public function named(int $slide, string $name): array
+    {
+        return array_values(array_filter($this->drawn($slide), fn (array $shape): bool => $shape['name'] === $name));
+    }
+
+    /**
+     * @return list<DOMElement>
      */
     private function query(string $xml, string $expression): array
+    {
+        return iterator_to_array($this->xpath($xml)->query($expression), false);
+    }
+
+    private function xpath(string $xml): DOMXPath
     {
         $document = new DOMDocument;
 
@@ -140,6 +199,6 @@ final class Deck
         $xpath->registerNamespace('a', self::DRAWING);
         $xpath->registerNamespace('r', self::RELATIONSHIPS);
 
-        return iterator_to_array($xpath->query($expression), false);
+        return $xpath;
     }
 }

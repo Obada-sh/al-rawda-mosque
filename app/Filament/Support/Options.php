@@ -265,6 +265,35 @@ final class Options
     }
 
     /**
+     * The students of a course who can be marked present: those still in
+     * it and not archived, by name; with their circle when the whole
+     * course is listed.
+     *
+     * @return array<int, string> enrollment id => name
+     */
+    public static function studentsOfCourse(mixed $courseId, mixed $circleId = null): array
+    {
+        if (blank($courseId)) {
+            return [];
+        }
+
+        return Enrollment::query()
+            ->with(['student', 'circle'])
+            ->where('course_id', $courseId)
+            ->when(filled($circleId), fn (Builder $query) => $query->where('circle_id', $circleId))
+            ->whereNull('left_on')
+            ->whereHas('student', fn (Builder $query) => $query->active())
+            ->get()
+            ->sortBy(fn (Enrollment $enrollment): string => $enrollment->student->full_name)
+            ->mapWithKeys(fn (Enrollment $enrollment): array => [
+                $enrollment->getKey() => filled($circleId)
+                    ? $enrollment->student->full_name
+                    : "{$enrollment->student->full_name} — {$enrollment->circle->name}",
+            ])
+            ->all();
+    }
+
+    /**
      * The students who can be marked as having attended an activity: those
      * of the circle for a circle's activity, every student of a running
      * course for an activity of the whole mosque. Those already on the list

@@ -20,7 +20,11 @@ final class ScanCard
         private readonly RecordTeacherScan $teachers,
     ) {}
 
-    public function handle(?string $cardCode, ?CarbonInterface $at = null): ScanResult
+    /**
+     * @param  CarbonInterface|null  $at  when the card was read (now by default)
+     * @param  CarbonInterface|null  $day  the class day the attendance is for (the day of $at by default); never after today
+     */
+    public function handle(?string $cardCode, ?CarbonInterface $at = null, ?CarbonInterface $day = null): ScanResult
     {
         try {
             $data = ScanAttendanceRequest::validateData(['card_code' => $cardCode]);
@@ -31,7 +35,7 @@ final class ScanCard
         $teacherCard = TeacherCard::query()->where('card_code', $data['card_code'])->first();
 
         return $teacherCard === null
-            ? $this->students->handle($data['card_code'], $at)
-            : $this->teachers->handle($teacherCard, $at);
+            ? $this->students->handle($data['card_code'], $at, $day)
+            : $this->teachers->handle($teacherCard, $at, $day);
     }
 }

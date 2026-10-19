@@ -1,6 +1,9 @@
 {{--
-    The list of a circle's students: name, phone, guardian's phone and the
-    pages memorized in the course. One document per circle.
+    The list of a circle's students: their names, and the columns the
+    admin chose ($options, a SheetOptions): phones, the pages memorized
+    (how many and which), the juz exams and the attendance; in the course
+    of the circle, or in every course of each student. One document per
+    circle.
 --}}
 @extends('documents.layout')
 
@@ -14,40 +17,22 @@
         <article class="document">
             @include('documents.partials.letterhead', [
                 'title' => $sheet->circle->name,
-                'lines' => [$sheet->circle->course->name, [CirclePresenter::team($sheet->circle) ?? '']],
+                'lines' => [
+                    $sheet->circle->course->name,
+                    [CirclePresenter::team($sheet->circle) ?? ''],
+                    [$options->allCourses ? 'سجلّ كل طالب في كل الدورات منذ دخوله النظام' : ''],
+                ],
             ])
 
             @if ($sheet->isEmpty())
                 <p class="empty">لا يوجد طلاب في هذه الحلقة الآن.</p>
             @else
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th class="is-number">#</th>
-                            <th>اسم الطالب</th>
-                            <th>رقم الطالب</th>
-                            <th>رقم ولي الأمر</th>
-                            <th class="is-center">الصفحات المحفوظة في الدورة</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($sheet->lines as $line)
-                            <tr>
-                                <td class="is-number">{{ $loop->iteration }}</td>
-                                <td>{{ $line->name }}</td>
-                                <td>@if (filled($line->phone))<span class="ltr">{{ $line->phone }}</span>@else<span class="muted">—</span>@endif</td>
-                                <td>@if (filled($line->guardianPhone))<span class="ltr">{{ $line->guardianPhone }}</span>@else<span class="muted">—</span>@endif</td>
-                                <td class="is-center">{{ $line->newPages }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <td colspan="4">عدد الطلاب: {{ count($sheet->lines) }}</td>
-                            <td class="is-center">{{ $sheet->newPages() }}</td>
-                        </tr>
-                    </tfoot>
-                </table>
+                @include('documents.partials.students-table', [
+                    'lines' => $sheet->lines,
+                    'options' => $options,
+                    'newPages' => $sheet->newPages(),
+                    'examsPassed' => $sheet->examsPassed(),
+                ])
             @endif
         </article>
     @empty

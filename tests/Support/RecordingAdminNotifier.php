@@ -32,4 +32,20 @@ final class RecordingAdminNotifier implements AdminNotifier
     {
         $this->backupFailures++;
     }
+
+    /** @var list<string> */
+    public array $driveFailures = [];
+
+    /** @var list<array{names: list<string>, folder: string}> */
+    public array $driveLeftovers = [];
+
+    public function driveCopyFailed(string $reason): void
+    {
+        $this->driveFailures[] = $reason;
+    }
+
+    public function driveCopiesNotRemoved(array $names, string $folder): void
+    {
+        $this->driveLeftovers[] = ['names' => $names, 'folder' => $folder];
+    }
 }

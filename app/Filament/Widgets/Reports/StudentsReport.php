@@ -17,8 +17,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 /**
- * The students of the chosen scope, ranked by points, by new pages or by
- * attendance. Narrow the page to a course or to a circle to see the
+ * The students of the chosen scope, ranked by points, by new pages, by
+ * attendance or by the juz they passed an exam of. Narrow the page to a course or to a circle to see the
  * ranking inside it.
  */
 class StudentsReport extends TableWidget
@@ -79,6 +79,11 @@ class StudentsReport extends TableWidget
                     ->numeric()
                     ->alignCenter()
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('exams')
+                    ->label('السبر')
+                    ->tooltip('الأجزاء التي نجح الطالب في سبرها في الفترة، في هذه الدورة')
+                    ->numeric()
+                    ->alignCenter(),
                 TextColumn::make('points')
                     ->label('النقاط')
                     ->numeric()
@@ -117,6 +122,7 @@ class StudentsReport extends TableWidget
                 'attendance_rate' => $ranked->standing->attendanceRate(),
                 'new_pages' => $ranked->standing->newPages,
                 'recited_pages' => $ranked->standing->recitedPages,
+                'exams' => $ranked->standing->examsPassed,
                 'points' => $ranked->standing->points,
             ],
         ]);

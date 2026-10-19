@@ -24,6 +24,7 @@ use App\Services\Statistics\DashboardFigures;
 use App\Services\Statistics\ReportFilter;
 use App\Services\Statistics\TeacherAttendanceStandings;
 use App\Services\Teachers\TeacherCards;
+use App\Support\Dates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\Concerns\BuildsDomain;
@@ -395,5 +396,22 @@ class TeacherAttendanceTest extends TestCase
 
         $this->assertSame(2, $period['الأستاذ المواظب']->sessions);
         $this->assertSame(2, $period['الأستاذ المواظب']->attended);
+    }
+
+    public function test_a_teachers_card_can_be_recorded_for_an_earlier_day(): void
+    {
+        $course = Course::factory()->meetingOn([Weekday::Monday, Weekday::Wednesday])->create();
+        $teacher = $this->teacher();
+        $this->circle($course, ['supervisor_teacher_id' => $teacher->getKey()]);
+
+        $result = app(ScanCard::class)->handle($this->card($teacher, $course), day: Dates::parse('2026-10-05'));
+
+        $this->assertSame(ScanStatus::Recorded, $result->status);
+        $this->assertSame('تم تسجيل الحضور ليوم 05/10/2026', $result->message());
+        $this->assertSame('2026-10-05', TeacherAttendance::query()->sole()->session->session_date->toDateString());
+
+        // Tuesday is not one of its days.
+        $tuesday = app(ScanCard::class)->handle($this->card($teacher, $course), day: Dates::parse('2026-10-06'));
+        $this->assertSame('يوم 06/10/2026 ليس يوم دوام لهذه الدورة', $tuesday->message());
     }
 }

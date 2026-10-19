@@ -5,8 +5,22 @@
         x-init="focusBox()"
         x-on:keydown.window="keepFocus($event)"
         x-on:scan-processed.window="beep($event.detail.tone); focusBox()"
+        x-on:scan-day-changed.window="$nextTick(() => focusBox())"
     >
-        <form wire:submit="scan" class="rawda-scan__desk">
+        @php($anotherDay = $this->anotherDay())
+
+        <div class="rawda-scan__day">
+            {{ $this->dayForm }}
+        </div>
+
+        @if ($anotherDay !== null)
+            <div class="rawda-scan__another-day" role="alert">
+                <p>تُسجَّل البطاقات الآن ليوم <strong>{{ $anotherDay }}</strong>، لا لليوم.</p>
+                <x-filament::button color="warning" size="sm" wire:click="backToToday">العودة إلى اليوم</x-filament::button>
+            </div>
+        @endif
+
+        <form wire:submit="scan" @class(['rawda-scan__desk', 'is-another-day' => $anotherDay !== null])>
             <label for="rawda-card-code" class="rawda-scan__label">امسح البطاقة</label>
 
             <input
@@ -54,7 +68,7 @@
                 @if ($refusedCard !== null)
                     <div class="rawda-scan__offer">
                         <x-filament::button color="gray" wire:click="openExceptionalSession">
-                            فتح جلسة استثنائية اليوم وتسجيل الحضور
+                            {{ $this->exceptionalSessionLabel() }}
                         </x-filament::button>
                     </div>
                 @endif
@@ -77,7 +91,12 @@
                                     <span class="rawda-scan__tag">أستاذ</span>
                                 @endif
                             </span>
-                            <span class="rawda-scan__recent-circle">{{ $scan['place'] }}</span>
+                            <span class="rawda-scan__recent-circle">
+                                {{ $scan['place'] }}
+                                @if ($scan['day'] !== null)
+                                    <span class="rawda-scan__tag">ليوم {{ $scan['day'] }}</span>
+                                @endif
+                            </span>
                             <span class="rawda-scan__recent-time" dir="ltr">{{ $scan['time']->format('H:i') }}</span>
                         </li>
                     @endforeach

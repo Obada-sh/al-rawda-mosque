@@ -2,12 +2,12 @@
 
 namespace App\Filament\Resources\Students\Schemas;
 
+use App\Filament\Support\Fields\PhotoUpload;
 use App\Filament\Support\Options;
 use App\Filament\Support\Presenters\StudentPresenter;
 use App\Models\Student;
 use App\Support\Dates;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -67,13 +67,9 @@ class StudentForm
                             ->circular()
                             ->imageSize(96)
                             ->visible(fn (?Student $record): bool => self::hasPhoto($record)),
-                        // The picture is cut square and made small in the browser,
-                        // then checked and kept by the SaveStudent action.
-                        FileUpload::make('photo')
-                            ->label(fn (?Student $record): string => self::hasPhoto($record) ? 'صورة جديدة بدل الحالية' : 'الصورة')
-                            ->avatar()
-                            ->storeFiles(false)
-                            ->helperText('JPG أو PNG أو WebP. تُقصّ الصورة مربّعة تلقائياً.'),
+                        // Cut to the circle of the card in the browser, then checked and kept by the SaveStudent action.
+                        PhotoUpload::make()
+                            ->label(fn (?Student $record): string => self::hasPhoto($record) ? 'صورة جديدة بدل الحالية' : 'الصورة'),
                         Toggle::make('remove_photo')
                             ->label('إزالة الصورة الحالية')
                             ->visible(fn (?Student $record): bool => self::hasPhoto($record)),
