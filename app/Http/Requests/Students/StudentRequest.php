@@ -7,7 +7,8 @@ use App\Http\Requests\Rules\Picture;
 use App\Support\QuranPages;
 
 /**
- * Creating and editing a student. Only the name is required.
+ * Creating and editing a student. Only the name is required; the father's
+ * name, when given, tells apart students who carry the same name.
  *
  * The photo is optional: a picture to keep, or a wish to remove the one
  * the student has.
@@ -25,6 +26,7 @@ class StudentRequest extends BaseRequest
     {
         return [
             'full_name' => ['required', 'string', 'min:2', 'max:255'],
+            'father_name' => ['nullable', 'string', 'min:2', 'max:255'],
             'birth_date' => ['nullable', 'date', 'after:1900-01-01', 'before:today'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:'.self::PHONE_PATTERN],
             'guardian_phone' => ['nullable', 'string', 'max:30', 'regex:'.self::PHONE_PATTERN],
@@ -51,6 +53,7 @@ class StudentRequest extends BaseRequest
     {
         return [
             'full_name' => 'اسم الطالب',
+            'father_name' => 'اسم الأب',
             'birth_date' => 'تاريخ الميلاد',
             'phone' => 'رقم الطالب',
             'guardian_phone' => 'رقم ولي الأمر',

@@ -123,6 +123,36 @@ class StudentsPanelTest extends PanelTestCase
             ->assertSee('حلقة النور (دورة الصيف)');
     }
 
+    public function test_the_fathers_name_is_written_in_the_form_shown_under_the_name_and_searched(): void
+    {
+        Livewire::test(CreateStudent::class)
+            ->fillForm(['full_name' => 'كرم صواف', 'father_name' => 'محمد'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $withFather = Student::query()->sole();
+        $sameName = Student::factory()->create(['full_name' => 'كرم صواف']);
+        $this->assertSame('محمد', $withFather->father_name);
+
+        Livewire::test(ListStudents::class)
+            ->assertSee('اسم الأب: محمد')
+            ->searchTable('محمد')
+            ->assertCanSeeTableRecords([$withFather])
+            ->assertCanNotSeeTableRecords([$sameName]);
+
+        Livewire::test(EditStudent::class, ['record' => $withFather->getKey()])
+            ->assertFormSet(['father_name' => 'محمد'])
+            ->fillForm(['father_name' => 'أحمد'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('أحمد', $withFather->fresh()->father_name);
+
+        Livewire::test(ViewStudent::class, ['record' => $withFather->getKey()])
+            ->assertSee('اسم الأب')
+            ->assertSee('أحمد');
+    }
+
     public function test_a_student_is_archived_and_restored_from_the_list(): void
     {
         $student = Student::factory()->create();

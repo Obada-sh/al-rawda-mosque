@@ -15,6 +15,9 @@
 --  (expenses.quantity و unit_price تقبلان NULL)، وسوق النقاط: markets و
 --  market_items و market_sales و market_sale_lines.
 --
+--  الإصدار 5 (2026-10-20): اسم الأب الاختياري students.father_name، يميّز
+--  الطلاب الذين يحملون الاسم نفسه.
+--
 --  للاستعراض في MySQL Workbench بدون إنشاء أي شيء على السيرفر:
 --    File > Import > Reverse Engineer MySQL Create Script...
 --    اختر هذا الملف، فعّل "Place imported objects on a diagram"، ثم Execute.
@@ -59,6 +62,8 @@ CREATE TABLE `tajweed_levels` (
 CREATE TABLE `students` (
   `id`                    BIGINT UNSIGNED   NOT NULL AUTO_INCREMENT,
   `full_name`             VARCHAR(255)      NOT NULL,
+  `father_name`           VARCHAR(255)      NULL
+      COMMENT 'اختياري: يميّز الطلاب الذين يحملون الاسم نفسه',
   `birth_date`            DATE              NULL,
   `phone`                 VARCHAR(30)       NULL,
   `guardian_phone`        VARCHAR(30)       NULL,

@@ -22,6 +22,15 @@ final class StudentPresenter
     }
 
     /**
+     * "اسم الأب: محمد" under the name in the list of students, or null when
+     * the father's name was not written.
+     */
+    public static function father(Student $student): ?string
+    {
+        return filled($student->father_name) ? 'اسم الأب: '.$student->father_name : null;
+    }
+
+    /**
      * The address of the student's photo for the signed-in admin, or null
      * when the student has none. The address changes with the photo, so a
      * browser can keep a picture as long as it likes.

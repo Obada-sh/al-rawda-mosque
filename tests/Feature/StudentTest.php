@@ -61,6 +61,39 @@ class StudentTest extends TestCase
         $this->assertFalse($student->fresh()->is_profile_complete);
     }
 
+    public function test_the_fathers_name_is_optional_and_never_needed_for_a_complete_profile(): void
+    {
+        $student = app(SaveStudent::class)->handle(['full_name' => 'كرم صواف', 'father_name' => '  محمد  ']);
+        $this->assertSame('محمد', $student->fresh()->father_name);
+
+        // Saving without it in the input keeps it; an empty one clears it.
+        app(SaveStudent::class)->handle(['full_name' => 'كرم صواف'], $student);
+        $this->assertSame('محمد', $student->fresh()->father_name);
+        app(SaveStudent::class)->handle(['full_name' => 'كرم صواف', 'father_name' => ''], $student);
+        $this->assertNull($student->fresh()->father_name);
+
+        // Every field of a complete profile, and no father's name: complete.
+        $complete = Student::factory()->complete()->create();
+        $this->assertNull($complete->father_name);
+        $saved = app(SaveStudent::class)->handle([
+            'full_name' => $complete->full_name,
+            'birth_date' => $complete->birth_date->toDateString(),
+            'phone' => $complete->phone,
+            'guardian_phone' => $complete->guardian_phone,
+            'address' => $complete->address,
+            'tajweed_level_id' => $complete->tajweed_level_id,
+            'prior_memorized_pages' => $complete->prior_memorized_pages,
+        ], $complete);
+        $this->assertTrue($saved->is_profile_complete);
+
+        try {
+            app(SaveStudent::class)->handle(['full_name' => 'كرم صواف', 'father_name' => 'م']);
+            $this->fail('A one-letter father\'s name was accepted.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['father_name'], array_keys($exception->errors()));
+        }
+    }
+
     public function test_arabic_digits_in_phone_numbers_are_stored_as_latin_digits(): void
     {
         $student = app(SaveStudent::class)->handle([

@@ -40,9 +40,11 @@ class StudentsTable
                     ->imageSize(36)
                     ->visible(fn (): bool => Student::query()->whereNotNull('photo_path')->exists())
                     ->toggleable(),
+                // The father's name, when there is one, under the name: it tells apart students who carry the same name.
                 TextColumn::make('full_name')
                     ->label('الاسم')
-                    ->searchable()
+                    ->description(fn (Student $record): ?string => StudentPresenter::father($record))
+                    ->searchable(['full_name', 'father_name'])
                     ->sortable()
                     ->weight('medium'),
                 TextColumn::make('pending_exams')
@@ -152,6 +154,7 @@ class StudentsTable
             ])
             ->toolbarActions([
                 CardPrintActions::forSelected(),
+                DocumentActions::chosenStudentFiles(),
             ])
             ->defaultSort('full_name');
     }

@@ -14,6 +14,7 @@ use App\Http\Controllers\CircleSheetController;
 use App\Http\Controllers\MarketItemPictureController;
 use App\Http\Controllers\MosqueSheetController;
 use App\Http\Controllers\StudentFileController;
+use App\Http\Controllers\StudentFilesController;
 use App\Http\Controllers\StudentPhotoController;
 use App\Http\Controllers\TeacherCardController;
 use App\Http\Controllers\TeacherPhotoController;
@@ -105,6 +106,7 @@ class AdminPanelProvider extends PanelProvider
                 Route::get('market-items/{item}/picture', MarketItemPictureController::class)->name('market-items.picture');
                 // The documents printed on A4 paper under the mosque's logo.
                 Route::get('print/students/{student}', StudentFileController::class)->name('print.student-file');
+                Route::get('print/students', StudentFilesController::class)->name('print.student-files');
                 Route::get('print/circle-students', [CircleSheetController::class, 'students'])->name('print.circle-students');
                 Route::get('print/circle-codes', [CircleSheetController::class, 'codes'])->name('print.circle-codes');
                 Route::get('print/mosque-students', MosqueSheetController::class)->name('print.mosque-students');

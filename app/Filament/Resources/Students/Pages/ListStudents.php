@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Students\Pages;
 
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Support\Cards\CardPrintActions;
+use App\Filament\Support\Documents\DocumentActions;
 use App\Models\Student;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -17,6 +18,7 @@ class ListStudents extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            DocumentActions::studentFiles(),
             CardPrintActions::choose(),
             CreateAction::make(),
         ];

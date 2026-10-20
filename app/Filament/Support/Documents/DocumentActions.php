@@ -3,30 +3,37 @@
 namespace App\Filament\Support\Documents;
 
 use App\Actions\Documents\SheetOptions;
+use App\Actions\Documents\StudentFiles;
 use App\Filament\Support\Attempt;
 use App\Filament\Support\NewWindow;
 use App\Filament\Support\Options;
 use App\Http\Requests\Documents\CircleSheetRequest;
 use App\Http\Requests\Documents\MosqueSheetRequest;
 use App\Http\Requests\Documents\StudentFileRequest;
+use App\Http\Requests\Documents\StudentFilesRequest;
 use App\Models\Circle;
 use App\Models\Student;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Notifications\Notification;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Collection;
 use Livewire\Component as Livewire;
 
 /**
  * The buttons that open the documents printed on A4 paper: a student's
- * file, the list of a circle's students or their attendance codes, and
- * the list of every student of the mosque. They only open the page, in a
- * new window; what is printed is decided and checked by
- * PrepareStudentFile, PrepareCircleSheets and PrepareMosqueSheet.
+ * file, the files of many students, the list of a circle's students or
+ * their attendance codes, and the list of every student of the mosque.
+ * They only open the page, in a new window; what is printed is decided and
+ * checked by PrepareStudentFile, PrepareStudentFiles, PrepareCircleSheets
+ * and PrepareMosqueSheet.
  */
 final class DocumentActions
 {
@@ -41,6 +48,34 @@ final class DocumentActions
             'student' => $studentId,
             'course_id' => $courseId,
         ], fn (mixed $value): bool => filled($value)));
+    }
+
+    /**
+     * The files of many students, from the choice StudentFilesRequest
+     * validated: scope, and course_id, circle_id, archived, history or
+     * student_ids as the scope needs.
+     *
+     * @param  array<string, mixed>  $choice
+     */
+    public static function studentFilesUrl(array $choice): string
+    {
+        $query = ['scope' => (string) $choice['scope']];
+
+        foreach (['course_id', 'circle_id', 'history'] as $key) {
+            if (filled($choice[$key] ?? null)) {
+                $query[$key] = (string) $choice[$key];
+            }
+        }
+
+        if ((bool) ($choice['archived'] ?? false)) {
+            $query['archived'] = '1';
+        }
+
+        if (($choice['student_ids'] ?? []) !== []) {
+            $query['student_ids'] = array_values(array_map('intval', (array) $choice['student_ids']));
+        }
+
+        return route('filament.admin.print.student-files', $query);
     }
 
     /**
@@ -105,6 +140,100 @@ final class DocumentActions
 
                 NewWindow::open($livewire, self::studentFileUrl($record->getKey(), $data['course_id'] ?? null));
             });
+    }
+
+    /**
+     * At the top of the students' list: the files of every student, of the
+     * students of a course, or of those of a circle; each on pages of its
+     * own, to print together or save as one PDF.
+     */
+    public static function studentFiles(): Action
+    {
+        $scope = fn (Get $get): string => (string) $get('scope');
+
+        return Action::make('studentFiles')
+            ->label('ملفات A4')
+            ->icon(Heroicon::OutlinedDocumentDuplicate)
+            ->color('gray')
+            ->modalHeading('ملفات الطلاب على ورق A4')
+            ->modalDescription('ملف كل طالب يبدأ بصفحة جديدة، والطلاب مرتّبون بأسمائهم. '.self::LIST_DESCRIPTION)
+            ->modalSubmitActionLabel('فتح صفحة الطباعة')
+            ->modalWidth('lg')
+            ->schema([
+                Radio::make('scope')
+                    ->label('ملفات من')
+                    ->options([
+                        StudentFiles::ALL => 'كل الطلاب',
+                        StudentFiles::COURSE => 'طلاب دورة',
+                        StudentFiles::CIRCLE => 'طلاب حلقة',
+                    ])
+                    ->descriptions([
+                        StudentFiles::ALL => 'كل طالب مسجّل في النظام، حتى من لم يدخل دورة بعد.',
+                        StudentFiles::COURSE => 'الطلاب الحاليون في الدورة التي تختارها، من كل حلقاتها.',
+                        StudentFiles::CIRCLE => 'الطلاب الحاليون في الحلقة التي تختارها.',
+                    ])
+                    ->default(StudentFiles::ALL)
+                    ->live(),
+                Toggle::make('archived')
+                    ->label('مع الطلاب المؤرشفين')
+                    ->default(false)
+                    ->visible(fn (Get $get): bool => $scope($get) === StudentFiles::ALL),
+                Select::make('course_id')
+                    ->label('الدورة')
+                    ->options(fn (): array => Options::courses())
+                    ->default(fn (): ?int => Options::soleActiveCourseId())
+                    ->markAsRequired()
+                    ->live()
+                    ->afterStateUpdated(fn (Set $set) => $set('circle_id', null))
+                    ->visible(fn (Get $get): bool => in_array($scope($get), [StudentFiles::COURSE, StudentFiles::CIRCLE], true)),
+                Select::make('circle_id')
+                    ->label('الحلقة')
+                    ->placeholder(fn (Get $get): string => blank($get('course_id')) ? 'اختر الدورة أولاً' : 'اختر الحلقة')
+                    ->options(fn (Get $get): array => Options::circlesOfCourse($get('course_id')))
+                    ->markAsRequired()
+                    ->visible(fn (Get $get): bool => $scope($get) === StudentFiles::CIRCLE),
+                Radio::make('history')
+                    ->label('في كل ملف')
+                    ->options([
+                        SheetOptions::ALL_COURSES => 'كل دورات الطالب',
+                        SheetOptions::THIS_COURSE => 'هذه الدورة فقط',
+                    ])
+                    ->default(SheetOptions::ALL_COURSES)
+                    ->visible(fn (Get $get): bool => in_array($scope($get), [StudentFiles::COURSE, StudentFiles::CIRCLE], true)),
+            ])
+            ->action(function (array $data, Action $action, Livewire $livewire): void {
+                $choice = Attempt::action($action, fn (): array => StudentFilesRequest::validateData($data));
+
+                NewWindow::open($livewire, self::studentFilesUrl($choice));
+            });
+    }
+
+    /**
+     * For the students ticked in the list: their files, every course of each.
+     */
+    public static function chosenStudentFiles(): BulkAction
+    {
+        return BulkAction::make('studentFiles')
+            ->label('ملفات A4 للمحدَّدين')
+            ->icon(Heroicon::OutlinedDocumentDuplicate)
+            ->action(function (Collection $records, Livewire $livewire): void {
+                if ($records->count() > StudentFilesRequest::MAX_CHOSEN) {
+                    Notification::make()
+                        ->title('تُطبع ملفات '.StudentFilesRequest::MAX_CHOSEN.' طالب على الأكثر في المرة الواحدة.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                $ids = $records->modelKeys();
+                sort($ids);
+
+                $choice = StudentFilesRequest::validateData(['scope' => StudentFiles::CHOSEN, 'student_ids' => $ids]);
+
+                NewWindow::open($livewire, self::studentFilesUrl($choice));
+            })
+            ->deselectRecordsAfterCompletion();
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Panel;
 
 use App\Actions\Documents\SheetOptions;
+use App\Actions\Documents\StudentFiles;
 use App\Actions\Enrollments\UpdateEnrollmentDates;
 use App\Actions\Students\ArchiveStudent;
 use App\Enums\CourseStatus;
@@ -373,5 +374,107 @@ class PrintedDocumentsTest extends PanelTestCase
             ->callAction('mosqueStudents', data: ['history' => SheetOptions::THIS_COURSE, 'course_id' => null])
             ->assertHasActionErrors(['course_id']);
     }
-}
 
+    public function test_the_files_of_every_student_are_printed_together_each_on_its_own_pages(): void
+    {
+        $this->ahmad->student->update(['father_name' => 'محمد']);
+        Student::factory()->create(['full_name' => 'ياسين']);
+        app(ArchiveStudent::class)->handle(Student::factory()->create(['full_name' => 'زيد']));
+
+        $page = $this->get(DocumentActions::studentFilesUrl(['scope' => StudentFiles::ALL]))
+            ->assertOk()
+            ->assertSee('ملفات الطلاب — كل الطلاب')
+            ->assertSee('4 طلاب')
+            ->assertSeeInOrder([
+                '<h1 class="letterhead__title">أحمد</h1>', 'اسم الأب', 'محمد',
+                '<h1 class="letterhead__title">بلال</h1>',
+                '<h1 class="letterhead__title">خالد</h1>',
+                '<h1 class="letterhead__title">ياسين</h1>', 'الطالب غير مسجَّل في أي دورة بعد.',
+            ], escape: false)
+            ->assertDontSee('زيد')
+            ->getContent();
+
+        $this->assertSame(4, substr_count($page, '<article class="document">'));
+
+        $this->get(DocumentActions::studentFilesUrl(['scope' => StudentFiles::ALL, 'archived' => true]))
+            ->assertOk()
+            ->assertSee('ملفات الطلاب — كل الطلاب، والمؤرشفون معهم')
+            ->assertSeeInOrder(['<h1 class="letterhead__title">خالد</h1>', '<h1 class="letterhead__title">زيد</h1>', 'ملف الطالب (مؤرشف)'], escape: false);
+    }
+
+    public function test_the_files_of_a_course_of_a_circle_or_of_the_students_ticked(): void
+    {
+        $spring = Course::factory()->create(['name' => 'دورة الربيع', 'start_date' => '2026-03-01']);
+        $this->enroll($this->bilal->student, $spring, enrolledOn: '2026-03-01');
+        $gone = $this->enroll(Student::factory()->create(['full_name' => 'سامر الراحل']), $this->course, $this->circleA);
+        app(UpdateEnrollmentDates::class)->handle($gone, ['enrolled_on' => $gone->enrolled_on->toDateString(), 'left_on' => '2026-10-04']);
+
+        // The course: its students now, each with all their courses.
+        $this->get(DocumentActions::studentFilesUrl(['scope' => StudentFiles::COURSE, 'course_id' => $this->course->getKey()]))
+            ->assertOk()
+            ->assertSee('ملفات الطلاب — طلاب دورة الخريف')
+            ->assertSeeInOrder(['أحمد', 'بلال', 'دورة الخريف — حلقة أ', 'دورة الربيع', 'خالد'])
+            ->assertDontSee('سامر الراحل');
+
+        // Or only that course in each file.
+        $this->get(DocumentActions::studentFilesUrl(['scope' => StudentFiles::COURSE, 'course_id' => $this->course->getKey(), 'history' => SheetOptions::THIS_COURSE]))
+            ->assertOk()
+            ->assertSee('في كل ملف: دورة الخريف وحدها.')
+            ->assertDontSee('دورة الربيع');
+
+        $page = $this->get(DocumentActions::studentFilesUrl(['scope' => StudentFiles::CIRCLE, 'circle_id' => $this->circleB->getKey()]))
+            ->assertOk()
+            ->assertSee('ملفات الطلاب — طلاب حلقة ب — دورة الخريف')
+            ->assertSee('<h1 class="letterhead__title">خالد</h1>', escape: false)
+            ->getContent();
+        $this->assertSame(1, substr_count($page, '<article class="document">'));
+
+        $this->get(DocumentActions::studentFilesUrl(['scope' => StudentFiles::CHOSEN, 'student_ids' => [$this->khalid->student_id, $this->ahmad->student_id]]))
+            ->assertOk()
+            ->assertSee('ملفات الطلاب — الطلاب المحدَّدون')
+            ->assertSeeInOrder(['<h1 class="letterhead__title">أحمد</h1>', '<h1 class="letterhead__title">خالد</h1>'], escape: false)
+            ->assertDontSee('<h1 class="letterhead__title">بلال</h1>', escape: false);
+
+        // Whose files must be said, with what each choice needs.
+        $files = route('filament.admin.print.student-files');
+        $this->get($files)->assertSessionHasErrors(['scope']);
+        $this->get($files.'?scope=course')->assertSessionHasErrors(['course_id']);
+        $this->get($files.'?scope=circle')->assertSessionHasErrors(['circle_id']);
+        $this->get($files.'?scope=chosen')->assertSessionHasErrors(['student_ids']);
+        $this->get($files.'?scope=chosen&student_ids[]=999999')->assertSessionHasErrors(['student_ids.0']);
+    }
+
+    public function test_the_files_of_many_students_are_opened_from_the_list_of_students(): void
+    {
+        Livewire::test(ListStudents::class)
+            ->mountAction('studentFiles')
+            ->assertActionDataSet(['scope' => StudentFiles::ALL, 'archived' => false])
+            ->callMountedAction()
+            ->assertJs($this->opens(DocumentActions::studentFilesUrl(['scope' => StudentFiles::ALL])));
+
+        Livewire::test(ListStudents::class)
+            ->callAction('studentFiles', data: ['scope' => StudentFiles::ALL, 'archived' => true])
+            ->assertJs($this->opens(DocumentActions::studentFilesUrl(['scope' => StudentFiles::ALL, 'archived' => true])));
+
+        Livewire::test(ListStudents::class)
+            ->callAction('studentFiles', data: ['scope' => StudentFiles::COURSE, 'course_id' => $this->course->getKey(), 'history' => SheetOptions::THIS_COURSE])
+            ->assertJs($this->opens(DocumentActions::studentFilesUrl(['scope' => StudentFiles::COURSE, 'course_id' => $this->course->getKey(), 'history' => SheetOptions::THIS_COURSE])));
+
+        Livewire::test(ListStudents::class)
+            ->callAction('studentFiles', data: ['scope' => StudentFiles::CIRCLE, 'course_id' => $this->course->getKey(), 'circle_id' => $this->circleA->getKey(), 'history' => SheetOptions::ALL_COURSES])
+            ->assertJs($this->opens(DocumentActions::studentFilesUrl(['scope' => StudentFiles::CIRCLE, 'circle_id' => $this->circleA->getKey(), 'history' => SheetOptions::ALL_COURSES])));
+
+        Livewire::test(ListStudents::class)
+            ->callAction('studentFiles', data: ['scope' => StudentFiles::CIRCLE, 'course_id' => $this->course->getKey(), 'circle_id' => null])
+            ->assertHasActionErrors(['circle_id']);
+
+        // The students ticked in the list.
+        $ids = [$this->ahmad->student_id, $this->khalid->student_id];
+        sort($ids);
+
+        Livewire::test(ListStudents::class)
+            ->selectTableRecords([$this->khalid->student, $this->ahmad->student])
+            ->callAction(TestAction::make('studentFiles')->table()->bulk())
+            ->assertJs($this->opens(DocumentActions::studentFilesUrl(['scope' => StudentFiles::CHOSEN, 'student_ids' => $ids])));
+    }
+}

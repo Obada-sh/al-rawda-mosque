@@ -30,6 +30,9 @@ class StudentInfolist
                         TextEntry::make('full_name')
                             ->label('الاسم')
                             ->weight('bold'),
+                        TextEntry::make('father_name')
+                            ->label('اسم الأب')
+                            ->placeholder('—'),
                         TextEntry::make('age')
                             ->label('العمر')
                             ->suffix(' سنة')

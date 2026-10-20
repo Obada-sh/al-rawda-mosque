@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 /**
  * @property int $id
  * @property string $full_name
+ * @property string|null $father_name
  * @property CarbonInterface|null $birth_date
  * @property string|null $phone
  * @property string|null $guardian_phone
@@ -43,6 +44,7 @@ class Student extends Model
      */
     protected $fillable = [
         'full_name',
+        'father_name',
         'birth_date',
         'phone',
         'guardian_phone',
@@ -55,6 +57,7 @@ class Student extends Model
     ];
 
     protected $attributes = [
+        'father_name' => null,
         'recited_pages_count' => 0,
         'is_profile_complete' => false,
         'photo_path' => null,
