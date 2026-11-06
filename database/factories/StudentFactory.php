@@ -39,4 +39,20 @@ class StudentFactory extends Factory
     {
         return $this->state(['archived_at' => now()]);
     }
+
+    /**
+     * A student of the English section only.
+     */
+    public function english(): static
+    {
+        return $this->state(['in_mosque' => false, 'in_english' => true]);
+    }
+
+    /**
+     * A student of both sections.
+     */
+    public function inBothSections(): static
+    {
+        return $this->state(['in_mosque' => true, 'in_english' => true]);
+    }
 }

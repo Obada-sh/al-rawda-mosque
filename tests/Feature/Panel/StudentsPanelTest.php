@@ -123,6 +123,32 @@ class StudentsPanelTest extends PanelTestCase
             ->assertSee('حلقة النور (دورة الصيف)');
     }
 
+    public function test_the_fathers_work_is_written_in_the_form_and_shown_on_the_students_page(): void
+    {
+        Livewire::test(CreateStudent::class)
+            ->assertFormFieldExists('father_work')
+            ->fillForm(['full_name' => 'كرم صواف', 'father_work' => 'نجّار'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $student = Student::query()->sole();
+        $this->assertSame('نجّار', $student->father_work);
+
+        Livewire::test(EditStudent::class, ['record' => $student->getKey()])
+            ->assertFormSet(['father_work' => 'نجّار'])
+            ->fillForm(['father_work' => ''])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertNull($student->fresh()->father_work);
+
+        $student->update(['father_work' => 'معلّم']);
+
+        Livewire::test(ViewStudent::class, ['record' => $student->getKey()])
+            ->assertSee('عمل الأب')
+            ->assertSee('معلّم');
+    }
+
     public function test_the_fathers_name_is_written_in_the_form_shown_under_the_name_and_searched(): void
     {
         Livewire::test(CreateStudent::class)

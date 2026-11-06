@@ -6,8 +6,10 @@ use App\Actions\Students\ArchiveStudent;
 use App\Actions\Students\DeleteStudent;
 use App\Actions\Students\RestoreStudent;
 use App\Actions\Students\SaveStudent;
+use App\Enums\Section;
 use App\Models\Student;
 use App\Models\TajweedLevel;
+use App\Services\Students\ProfileCompleteness;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\Concerns\BuildsDomain;
@@ -91,6 +93,42 @@ class StudentTest extends TestCase
             $this->fail('A one-letter father\'s name was accepted.');
         } catch (ValidationException $exception) {
             $this->assertSame(['father_name'], array_keys($exception->errors()));
+        }
+    }
+
+    public function test_the_fathers_work_is_optional_and_never_needed_for_a_complete_profile(): void
+    {
+        $student = app(SaveStudent::class)->handle(['full_name' => 'كرم صواف', 'father_work' => '  مهندس  ']);
+        $this->assertSame('مهندس', $student->fresh()->father_work);
+
+        // Saving without it in the input keeps it; an empty one clears it.
+        app(SaveStudent::class)->handle(['full_name' => 'كرم صواف'], $student);
+        $this->assertSame('مهندس', $student->fresh()->father_work);
+        app(SaveStudent::class)->handle(['full_name' => 'كرم صواف', 'father_work' => ''], $student);
+        $this->assertNull($student->fresh()->father_work);
+
+        // A complete profile, in either section, needs no father's work.
+        $this->assertArrayNotHasKey('father_work', ProfileCompleteness::requiredFields(Section::Mosque));
+        $this->assertArrayNotHasKey('father_work', ProfileCompleteness::requiredFields(Section::English));
+        $complete = Student::factory()->complete()->create();
+        $this->assertNull($complete->father_work);
+        $saved = app(SaveStudent::class)->handle([
+            'full_name' => $complete->full_name,
+            'birth_date' => $complete->birth_date->toDateString(),
+            'phone' => $complete->phone,
+            'guardian_phone' => $complete->guardian_phone,
+            'address' => $complete->address,
+            'tajweed_level_id' => $complete->tajweed_level_id,
+            'prior_memorized_pages' => $complete->prior_memorized_pages,
+        ], $complete);
+        $this->assertTrue($saved->is_profile_complete);
+        $this->assertNull($saved->fresh()->father_work);
+
+        try {
+            app(SaveStudent::class)->handle(['full_name' => 'كرم صواف', 'father_work' => str_repeat('ع', 256)]);
+            $this->fail('A father\'s work of 256 letters was accepted.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['father_work'], array_keys($exception->errors()));
         }
     }
 

@@ -82,6 +82,27 @@ final class Money
     }
 
     /**
+     * amount − minus, exactly. Unlike every other amount, it may be below
+     * zero (what came in, less what was spent).
+     *
+     * @return string decimal string such as "1250.50" or "-1250.50"
+     */
+    public static function difference(string|int|float $amount, string|int|float $minus): string
+    {
+        $cents = self::toScaledInt($amount, 2) - self::toScaledInt($minus, 2);
+
+        return ($cents < 0 ? '-' : '').self::fromCents(abs($cents));
+    }
+
+    /**
+     * An amount that may be below zero, with its currency: "-1,250 ل.س".
+     */
+    public static function signedPounds(string $amount): string
+    {
+        return str_starts_with($amount, '-') ? '-'.self::pounds(substr($amount, 1)) : self::pounds($amount);
+    }
+
+    /**
      * The part of a total that an amount makes, as a percentage with one
      * decimal. Null when the total is zero.
      */

@@ -7,8 +7,8 @@ use App\Exceptions\BusinessRuleViolation;
 use App\Http\Requests\Finance\ExpenseRequest;
 use App\Models\Department;
 use App\Models\Expense;
+use App\Services\Finance\ExpenseAmounts;
 use App\Support\Dates;
-use App\Support\Money;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -41,31 +41,11 @@ final class SaveExpense
         $expense->fill([
             'department_id' => $data['department_id'],
             'item_name' => $data['item_name'],
-            ...$this->amounts(ExpenseKind::from($data['kind']), $data),
+            ...ExpenseAmounts::of(ExpenseKind::from($data['kind']), $data),
             'expense_date' => Dates::day($data['expense_date']),
             'notes' => $data['notes'] ?? null,
         ])->save();
 
         return $expense;
-    }
-
-    /**
-     * @param  array<string, mixed>  $data  validated
-     * @return array{quantity: string|null, unit_price: string|null, total: string}
-     */
-    private function amounts(ExpenseKind $kind, array $data): array
-    {
-        return match ($kind) {
-            ExpenseKind::Itemized => [
-                'quantity' => (string) $data['quantity'],
-                'unit_price' => (string) $data['unit_price'],
-                'total' => Money::lineTotal((string) $data['quantity'], (string) $data['unit_price']),
-            ],
-            ExpenseKind::LumpSum => [
-                'quantity' => null,
-                'unit_price' => null,
-                'total' => Money::sum((string) $data['amount']),
-            ],
-        };
     }
 }

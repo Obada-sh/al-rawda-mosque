@@ -38,7 +38,7 @@ class StudentsTable
                     ->defaultImageUrl(fn (): string => asset('img/student.svg'))
                     ->circular()
                     ->imageSize(36)
-                    ->visible(fn (): bool => Student::query()->whereNotNull('photo_path')->exists())
+                    ->visible(fn (): bool => Student::query()->inMosque()->whereNotNull('photo_path')->exists())
                     ->toggleable(),
                 // The father's name, when there is one, under the name: it tells apart students who carry the same name.
                 TextColumn::make('full_name')

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Panel;
 
+use App\Actions\Documents\MosqueSheet;
 use App\Actions\Documents\SheetOptions;
 use App\Actions\Documents\StudentFiles;
 use App\Actions\Enrollments\UpdateEnrollmentDates;
@@ -270,9 +271,9 @@ class PrintedDocumentsTest extends PanelTestCase
         Livewire::test(CircleSheets::class)
             ->assertCanSeeTableRecords([$this->circleA, $this->circleB])
             ->assertActionHasUrl(TestAction::make('circleCodes')->table($this->circleB), DocumentActions::circleCodesUrl($this->circleB->getKey()))
-            // The list asks whose records and which columns; it opens on the course and everything.
+            // The list asks whose records and which columns; it opens on the course and every column but the notes.
             ->mountAction(TestAction::make('circleStudents')->table($this->circleA))
-            ->assertActionDataSet(['history' => SheetOptions::THIS_COURSE, 'columns' => SheetOptions::COLUMNS])
+            ->assertActionDataSet(['history' => SheetOptions::THIS_COURSE, 'columns' => SheetOptions::DEFAULT_COLUMNS])
             ->callMountedAction()
             ->assertJs($this->opens(DocumentActions::circleStudentsUrl($this->circleA->getKey(), options: new SheetOptions)));
 
@@ -292,7 +293,7 @@ class PrintedDocumentsTest extends PanelTestCase
             ->assertHasActionErrors(['course_id']);
 
         Livewire::test(CirclesRelationManager::class, ['ownerRecord' => $this->course, 'pageClass' => EditCourse::class])
-            ->callAction(TestAction::make('circleStudents')->table($this->circleA), data: ['history' => SheetOptions::THIS_COURSE, 'columns' => SheetOptions::COLUMNS])
+            ->callAction(TestAction::make('circleStudents')->table($this->circleA), data: ['history' => SheetOptions::THIS_COURSE, 'columns' => SheetOptions::DEFAULT_COLUMNS])
             ->assertJs($this->opens(DocumentActions::circleStudentsUrl($this->circleA->getKey(), options: new SheetOptions)))
             ->assertActionHasUrl(TestAction::make('circleCodes')->table($this->circleA), DocumentActions::circleCodesUrl($this->circleA->getKey()));
     }
@@ -354,11 +355,89 @@ class PrintedDocumentsTest extends PanelTestCase
         $this->get(route('filament.admin.print.mosque-students'))->assertSessionHasErrors(['history']);
     }
 
+    public function test_the_notes_are_printed_only_when_asked(): void
+    {
+        $this->ahmad->student->update(['notes' => "يحتاج متابعة\nفي التجويد"]);
+
+        // Asked: a column of their own, each student's as written; a dash for those without.
+        $this->get(DocumentActions::mosqueStudentsUrl(new SheetOptions(allCourses: true, phones: false, pages: false, exams: false, attendance: false, notes: true)))
+            ->assertOk()
+            ->assertSeeInOrder(['اسم الطالب', 'الحلقة الآن', 'الملاحظات'])
+            ->assertSee('<td class="sheet-table__notes">يحتاج متابعة'."\n".'في التجويد</td>', escape: false)
+            ->assertSeeInOrder(['أحمد', 'يحتاج متابعة', 'بلال', '<span class="muted">—</span>'], escape: false)
+            ->assertSee('<td colspan="3">عدد الطلاب: 3</td>', escape: false);
+
+        $this->get(DocumentActions::circleStudentsUrl($this->circleA->getKey(), options: new SheetOptions(notes: true)))
+            ->assertOk()
+            ->assertSeeInOrder(['الحضور في الدورة', 'الملاحظات', 'أحمد', 'يحتاج متابعة'])
+            ->assertSee('<td class="sheet-table__notes">', escape: false);
+
+        // Not asked, or the plain address of a sheet: no notes.
+        foreach ([
+            DocumentActions::mosqueStudentsUrl(new SheetOptions(allCourses: true)),
+            DocumentActions::circleStudentsUrl($this->circleA->getKey()),
+            route('filament.admin.print.circle-students', ['circle_id' => $this->circleA->getKey(), 'notes' => '0']),
+        ] as $url) {
+            $this->get($url)
+                ->assertOk()
+                ->assertSee('أحمد')
+                ->assertDontSee('الملاحظات')
+                ->assertDontSee('يحتاج متابعة');
+        }
+
+        $this->get(route('filament.admin.print.circle-students', ['circle_id' => $this->circleA->getKey(), 'notes' => 'yes']))->assertSessionHasErrors(['notes']);
+    }
+
+    public function test_the_mosques_sheet_circle_by_circle_with_the_students_in_no_circle_last(): void
+    {
+        // Khalid is also in a second running course, newer than the autumn's; Yasin is in none.
+        $evening = Course::factory()->create(['name' => 'دورة المساء', 'start_date' => '2026-09-20']);
+        $circleC = Circle::factory()->create(['course_id' => $evening->getKey(), 'name' => 'حلقة ج']);
+        $this->enroll($this->khalid->student, $evening, $circleC);
+        Student::factory()->create(['full_name' => 'ياسين']);
+
+        $page = $this->get(DocumentActions::mosqueStudentsUrl(new SheetOptions(allCourses: true, phones: false), byCircle: true))
+            ->assertOk()
+            ->assertSee('حسب حلقاتهم الآن')
+            ->assertSeeInOrder([
+                '<h2 class="block__title">حلقة أ</h2>', '<p class="block__note">دورة الخريف', 'أحمد', 'بلال', '<td colspan="2">عدد الطلاب: 2</td>',
+                '<h2 class="block__title">حلقة ب</h2>', 'خالد', '<td colspan="2">عدد الطلاب: 1</td>',
+                '<h2 class="block__title">حلقة ج</h2>', '<p class="block__note">دورة المساء', 'خالد',
+                '<h2 class="block__title">بلا حلقة الآن</h2>', 'ياسين',
+                'عدد الطلاب في الكشف: 4',
+                'السبر: رقم الجزء وتقدير آخر سبر فيه.',
+            ], escape: false)
+            // The heading says the circle: no column for it.
+            ->assertDontSee('الحلقة الآن')
+            ->getContent();
+
+        $this->assertSame(1, substr_count($page, '<article class="document">'));
+        $this->assertSame(4, substr_count($page, '<section class="block sheet-group">'));
+        $this->assertSame(1, substr_count($page, 'السبر: رقم الجزء'));
+
+        // One course: its circles that have students, nothing for those in none.
+        $this->get(DocumentActions::mosqueStudentsUrl(new SheetOptions, $this->course->getKey(), byCircle: true))
+            ->assertOk()
+            ->assertSee('حلقةً بعد حلقة')
+            ->assertSeeInOrder(['<h2 class="block__title">حلقة أ</h2>', 'أحمد', '12 صفحة', 'بلال', '<h2 class="block__title">حلقة ب</h2>', 'خالد', 'عدد الطلاب في الكشف: 3'], escape: false)
+            ->assertDontSee('حلقة ج')
+            ->assertDontSee('بلا حلقة الآن')
+            ->assertDontSee('<p class="block__note">دورة الخريف', escape: false);
+
+        // By name is the plain address; any other order is refused.
+        $this->get(DocumentActions::mosqueStudentsUrl(new SheetOptions(allCourses: true)))
+            ->assertOk()
+            ->assertSee('الحلقة الآن')
+            ->assertSee('حلقة ب، حلقة ج')
+            ->assertDontSee('sheet-group');
+        $this->get(route('filament.admin.print.mosque-students', ['history' => SheetOptions::ALL_COURSES, 'order' => 'age']))->assertSessionHasErrors(['order']);
+    }
+
     public function test_the_mosques_sheet_is_opened_from_the_circle_sheets_page(): void
     {
         Livewire::test(CircleSheets::class)
             ->mountAction('mosqueStudents')
-            ->assertActionDataSet(['history' => SheetOptions::ALL_COURSES, 'archived' => false, 'columns' => SheetOptions::COLUMNS])
+            ->assertActionDataSet(['history' => SheetOptions::ALL_COURSES, 'archived' => false, 'order' => MosqueSheet::BY_NAME, 'columns' => SheetOptions::DEFAULT_COLUMNS])
             ->callMountedAction()
             ->assertJs($this->opens(DocumentActions::mosqueStudentsUrl(new SheetOptions(allCourses: true))));
 
@@ -367,8 +446,13 @@ class PrintedDocumentsTest extends PanelTestCase
             ->assertJs($this->opens(DocumentActions::mosqueStudentsUrl(new SheetOptions(allCourses: true, phones: false, exams: false, attendance: false), withArchived: true)));
 
         Livewire::test(CircleSheets::class)
-            ->callAction('mosqueStudents', data: ['history' => SheetOptions::THIS_COURSE, 'course_id' => $this->course->getKey(), 'columns' => SheetOptions::COLUMNS])
+            ->callAction('mosqueStudents', data: ['history' => SheetOptions::THIS_COURSE, 'course_id' => $this->course->getKey(), 'columns' => SheetOptions::DEFAULT_COLUMNS])
             ->assertJs($this->opens(DocumentActions::mosqueStudentsUrl(new SheetOptions, $this->course->getKey())));
+
+        // Circle by circle, with the notes.
+        Livewire::test(CircleSheets::class)
+            ->callAction('mosqueStudents', data: ['history' => SheetOptions::ALL_COURSES, 'order' => MosqueSheet::BY_CIRCLE, 'columns' => ['pages', 'notes']])
+            ->assertJs($this->opens(DocumentActions::mosqueStudentsUrl(new SheetOptions(allCourses: true, phones: false, exams: false, attendance: false, notes: true), byCircle: true)));
 
         Livewire::test(CircleSheets::class)
             ->callAction('mosqueStudents', data: ['history' => SheetOptions::THIS_COURSE, 'course_id' => null])
@@ -377,7 +461,7 @@ class PrintedDocumentsTest extends PanelTestCase
 
     public function test_the_files_of_every_student_are_printed_together_each_on_its_own_pages(): void
     {
-        $this->ahmad->student->update(['father_name' => 'محمد']);
+        $this->ahmad->student->update(['father_name' => 'محمد', 'father_work' => 'نجّار']);
         Student::factory()->create(['full_name' => 'ياسين']);
         app(ArchiveStudent::class)->handle(Student::factory()->create(['full_name' => 'زيد']));
 
@@ -386,7 +470,7 @@ class PrintedDocumentsTest extends PanelTestCase
             ->assertSee('ملفات الطلاب — كل الطلاب')
             ->assertSee('4 طلاب')
             ->assertSeeInOrder([
-                '<h1 class="letterhead__title">أحمد</h1>', 'اسم الأب', 'محمد',
+                '<h1 class="letterhead__title">أحمد</h1>', 'اسم الأب', 'محمد', 'عمل الأب', 'نجّار',
                 '<h1 class="letterhead__title">بلال</h1>',
                 '<h1 class="letterhead__title">خالد</h1>',
                 '<h1 class="letterhead__title">ياسين</h1>', 'الطالب غير مسجَّل في أي دورة بعد.',

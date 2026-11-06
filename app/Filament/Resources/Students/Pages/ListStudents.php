@@ -33,7 +33,7 @@ class ListStudents extends ListRecords
             'active' => Tab::make('الطلاب')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->active()),
             'incomplete' => Tab::make('ملفات غير مكتملة')
-                ->badge(fn (): ?int => Student::query()->active()->incompleteProfile()->count() ?: null)
+                ->badge(fn (): ?int => Student::query()->inMosque()->active()->incompleteProfile()->count() ?: null)
                 ->badgeColor('warning')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->active()->incompleteProfile()),
             'archived' => Tab::make('المؤرشفون')

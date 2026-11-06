@@ -13,6 +13,13 @@ use App\Models\Circle;
 use App\Models\CircleTransfer;
 use App\Models\Course;
 use App\Models\CourseSession;
+use App\Models\English\EnglishAttendance;
+use App\Models\English\EnglishCourse;
+use App\Models\English\EnglishEnrollment;
+use App\Models\English\EnglishExpense;
+use App\Models\English\EnglishPayment;
+use App\Models\English\EnglishTest;
+use App\Models\English\EnglishTestResult;
 use App\Models\Enrollment;
 use App\Models\Expense;
 use App\Models\PointTransaction;
@@ -77,7 +84,7 @@ class DemoTest extends TestCase
         $this->assertSame(6, Circle::query()->count());
 
         // Eight students in the running course, four of whom were in the summer one; one more in the archive.
-        $this->assertSame(9, Student::query()->count());
+        $this->assertSame(9, Student::query()->inMosque()->count());
         $this->assertSame(1, Student::query()->whereNotNull('archived_at')->count());
         $this->assertSame(8, Enrollment::query()->where('course_id', $autumn->getKey())->count());
         $this->assertSame(12, Enrollment::query()->count());
@@ -113,6 +120,22 @@ class DemoTest extends TestCase
         $this->assertCount(8, app(StudentStandings::class)->for($filter));
         $this->assertNotEmpty(app(QuranKnight::class)->ranking($filter));
         $this->assertNotEmpty(app(CircleLeaders::class)->of($filter, RankingCriterion::NewPages, 3));
+
+        // The English section: a finished course and a running one, eight
+        // students of its own and two of the mosque's, attendance, payments,
+        // marks and expenses of its own.
+        $this->assertSame(
+            [CourseStatus::Finished, CourseStatus::Active],
+            EnglishCourse::query()->orderBy('start_date')->get()->map(fn (EnglishCourse $course): CourseStatus => $course->status)->all(),
+        );
+        $this->assertSame(10, Student::query()->inEnglish()->count());
+        $this->assertSame(2, Student::query()->inMosque()->inEnglish()->count());
+        $this->assertSame(10, EnglishEnrollment::query()->whereHas('course', fn ($query) => $query->active())->count());
+        $this->assertGreaterThan(50, EnglishAttendance::query()->count());
+        $this->assertGreaterThan(0, EnglishPayment::query()->count());
+        $this->assertSame(2, EnglishTest::query()->count());
+        $this->assertGreaterThan(10, EnglishTestResult::query()->count());
+        $this->assertSame(6, EnglishExpense::query()->count());
     }
 
     public function test_a_demo_that_is_already_there_is_left_alone(): void

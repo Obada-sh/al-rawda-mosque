@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * Every outcome of scanning an attendance card.
+ * Every outcome of scanning an attendance card, in either section.
  *
  * Scanning never throws for an expected situation: the scan screen needs a
  * result it can colour, not an exception.
@@ -20,6 +20,10 @@ enum ScanStatus: string
     case SessionCancelled = 'session_cancelled';
     case InactiveTeacher = 'inactive_teacher';
     case TeacherWithoutCircle = 'teacher_without_circle';
+    /** A card of the English section, scanned at the mosque's desk. */
+    case EnglishCard = 'english_card';
+    /** A card of the mosque, scanned at the English section's desk. */
+    case MosqueCard = 'mosque_card';
 
     public function isSuccess(): bool
     {
@@ -67,6 +71,8 @@ enum ScanStatus: string
             self::SessionCancelled => 'جلسة اليوم ملغاة',
             self::InactiveTeacher => 'هذا الأستاذ غير نشط',
             self::TeacherWithoutCircle => 'الأستاذ ليس مشرفاً ولا مساعداً في حلقة نشطة من دورة هذه البطاقة',
+            self::EnglishCard => 'هذه بطاقة دورة انجليزي: يُسجَّل حضورها من قسم دورة انجليزي',
+            self::MosqueCard => 'هذه بطاقة من دورات المسجد: يُسجَّل حضورها من قسم دورات المسجد',
         };
     }
 }

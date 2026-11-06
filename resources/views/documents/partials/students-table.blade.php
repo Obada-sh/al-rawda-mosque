@@ -1,12 +1,14 @@
 {{--
     The table of a sheet of students: their names, and the columns the
     admin chose ($options, a SheetOptions): phones, the pages memorized
-    (how many and which), the juz exams and the attendance; in one course
-    or in every course of each student.
+    (how many and which), the juz exams, the attendance and the notes; in
+    one course or in every course of each student.
 
     $lines (list of SheetLine), $options, $newPages and $examsPassed (the
     totals of the sheet), and optionally $circleHeading: the heading of a
-    column with each student's circle (the mosque's sheet), none when null.
+    column with each student's circle (the mosque's sheet), none when null;
+    and $examsNote: false when the page writes what the exams column means
+    once, under all its tables.
 --}}
 @use('App\Actions\Documents\SheetExam')
 @use('App\Filament\Support\Presenters\ReportPresenter')
@@ -16,6 +18,7 @@
 @php
     $where = $options->allCourses ? 'في كل الدورات' : 'في الدورة';
     $circleHeading ??= null;
+    $examsNote ??= true;
 @endphp
 
 <table class="table sheet-table">
@@ -38,6 +41,9 @@
             @endif
             @if ($options->attendance)
                 <th class="is-center">الحضور {{ $where }}</th>
+            @endif
+            @if ($options->notes)
+                <th>الملاحظات</th>
             @endif
         </tr>
     </thead>
@@ -88,6 +94,9 @@
                         @endif
                     </td>
                 @endif
+                @if ($options->notes)
+                    <td class="sheet-table__notes">@if (filled($line->notes)){{ $line->notes }}@else<span class="muted">—</span>@endif</td>
+                @endif
             </tr>
         @endforeach
     </tbody>
@@ -103,9 +112,12 @@
             @if ($options->attendance)
                 <td></td>
             @endif
+            @if ($options->notes)
+                <td></td>
+            @endif
         </tr>
     </tfoot>
 </table>
-@if ($options->exams)
+@if ($options->exams && $examsNote)
     <p class="sheet-note">السبر: رقم الجزء وتقدير آخر سبر فيه.</p>
 @endif

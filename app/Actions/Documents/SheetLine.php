@@ -23,6 +23,7 @@ final readonly class SheetLine
      * @param  string|null  $qrSvg  the QR of the card code, when the sheet shows the codes
      * @param  string|null  $circle  on the mosque's sheet: the student's circle(s); null when they are in none now
      * @param  bool  $archived  on the mosque's sheet: the student's file is archived
+     * @param  string|null  $notes  what the admin wrote about the student
      */
     public function __construct(
         public string $name,
@@ -38,6 +39,7 @@ final readonly class SheetLine
         public ?string $qrSvg = null,
         public ?string $circle = null,
         public bool $archived = false,
+        public ?string $notes = null,
     ) {}
 
     /**
@@ -64,6 +66,7 @@ final readonly class SheetLine
             qrSvg: $qrSvg,
             circle: $circle,
             archived: $student->isArchived(),
+            notes: $student->notes,
         );
     }
 

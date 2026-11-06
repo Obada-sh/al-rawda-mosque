@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\Documents;
 
+use App\Actions\Documents\MosqueSheet;
 use App\Actions\Documents\SheetOptions;
 use App\Actions\Documents\StudentFiles;
 use App\Filament\Support\Attempt;
@@ -15,11 +16,11 @@ use App\Models\Circle;
 use App\Models\Student;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
-use Filament\Notifications\Notification;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -91,15 +92,18 @@ final class DocumentActions
     /**
      * The list of the mosque's students: every student in the system with
      * their records in every course (archived ones too when asked), or,
-     * when the options say one course, the students of that course.
+     * when the options say one course, the students of that course. In
+     * one table by name, or circle by circle.
      */
-    public static function mosqueStudentsUrl(SheetOptions $options, int|string|null $courseId = null, bool $withArchived = false): string
+    public static function mosqueStudentsUrl(SheetOptions $options, int|string|null $courseId = null, bool $withArchived = false, bool $byCircle = false): string
     {
         $scope = $options->allCourses
             ? ($withArchived ? ['archived' => '1'] : [])
             : ['course_id' => (string) $courseId];
 
-        return route('filament.admin.print.mosque-students', $scope + $options->query());
+        $order = $byCircle ? ['order' => MosqueSheet::BY_CIRCLE] : [];
+
+        return route('filament.admin.print.mosque-students', $scope + $order + $options->query());
     }
 
     /**
@@ -299,7 +303,7 @@ final class DocumentActions
             ->icon(Heroicon::OutlinedUserGroup)
             ->color('gray')
             ->modalHeading('كشف كل طلاب الجامع')
-            ->modalDescription('جدول واحد مرتّب بأسماء الطلاب، بجانب كل طالب حلقته. '.self::LIST_DESCRIPTION)
+            ->modalDescription('كشف واحد بطلاب الجامع: بأسمائهم في جدول واحد، أو حلقةً بعد حلقة. '.self::LIST_DESCRIPTION)
             ->modalSubmitActionLabel('فتح صفحة الطباعة')
             ->modalWidth('lg')
             ->schema([
@@ -326,6 +330,17 @@ final class DocumentActions
                     ->helperText('يُكتب تحت اسم كل واحد منهم أن ملفه مؤرشف.')
                     ->default(false)
                     ->visible(fn (Get $get): bool => $get('history') === SheetOptions::ALL_COURSES),
+                Radio::make('order')
+                    ->label('ترتيب الطلاب')
+                    ->options([
+                        MosqueSheet::BY_NAME => 'بالأسماء',
+                        MosqueSheet::BY_CIRCLE => 'حسب الحلقات',
+                    ])
+                    ->descriptions([
+                        MosqueSheet::BY_NAME => 'جدول واحد مرتّب بأسماء الطلاب، بجانب كل طالب حلقته.',
+                        MosqueSheet::BY_CIRCLE => 'حلقةً بعد حلقة: تحت اسم كل حلقة طلابها بأسمائهم. مع كل الدورات تكون حلقة الطالب هي حلقته الآن، ومن ليس في حلقة الآن يأتي في آخر الكشف.',
+                    ])
+                    ->default(MosqueSheet::BY_NAME),
                 self::columnsChoice(),
             ])
             ->action(function (array $data, Action $action, Livewire $livewire): void {
@@ -333,9 +348,15 @@ final class DocumentActions
                 $valid = Attempt::action($action, fn (): array => MosqueSheetRequest::validateData([
                     'course_id' => $data['course_id'] ?? null,
                     'archived' => (bool) ($data['archived'] ?? false),
+                    'order' => $data['order'] ?? MosqueSheet::BY_NAME,
                 ] + $options->query()));
 
-                NewWindow::open($livewire, self::mosqueStudentsUrl($options, $valid['course_id'] ?? null, (bool) ($valid['archived'] ?? false)));
+                NewWindow::open($livewire, self::mosqueStudentsUrl(
+                    $options,
+                    $valid['course_id'] ?? null,
+                    (bool) ($valid['archived'] ?? false),
+                    ($valid['order'] ?? MosqueSheet::BY_NAME) === MosqueSheet::BY_CIRCLE,
+                ));
             });
     }
 
@@ -410,9 +431,13 @@ final class DocumentActions
                 'pages' => 'الصفحات المحفوظة: عددها وأرقامها',
                 'exams' => 'السبر: الأجزاء وتقديراتها',
                 'attendance' => 'الحضور',
+                'notes' => 'الملاحظات',
             ])
-            ->default(SheetOptions::COLUMNS)
-            ->helperText('أزل العلامة عمّا لا تريد طباعته. بلا أي علامة يُطبع كشف بالأسماء وحدها.');
+            ->descriptions([
+                'notes' => 'ما كُتب في ملف الطالب في خانة الملاحظات.',
+            ])
+            ->default(SheetOptions::DEFAULT_COLUMNS)
+            ->helperText('ضع العلامة على ما تريد طباعته وأزلها عمّا لا تريد. بلا أي علامة يُطبع كشف بالأسماء وحدها.');
     }
 
     /**

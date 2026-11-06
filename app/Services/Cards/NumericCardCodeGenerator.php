@@ -3,6 +3,7 @@
 namespace App\Services\Cards;
 
 use App\Contracts\CardCodeGenerator;
+use App\Models\English\EnglishEnrollment;
 use App\Models\Enrollment;
 use App\Models\TeacherCard;
 
@@ -11,7 +12,9 @@ use App\Models\TeacherCard;
  * guessed from the one next to it.
  *
  * Students' and teachers' cards share the scan screen, so a code is never
- * one that a student's or a teacher's card already has.
+ * one that a student's or a teacher's card already has. Nor is it one of
+ * the English section's cards: a card scanned in the wrong section is
+ * recognised as the other section's, never taken for someone else's.
  */
 final class NumericCardCodeGenerator implements CardCodeGenerator
 {
@@ -26,6 +29,7 @@ final class NumericCardCodeGenerator implements CardCodeGenerator
         } while (
             Enrollment::query()->where('card_code', $code)->exists()
             || TeacherCard::query()->where('card_code', $code)->exists()
+            || EnglishEnrollment::query()->where('card_code', $code)->exists()
         );
 
         return $code;

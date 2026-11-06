@@ -2,6 +2,7 @@
 
 namespace App\Actions\Students;
 
+use App\Enums\Section;
 use App\Http\Requests\Students\StudentRequest;
 use App\Models\Student;
 use App\Services\Students\ProfileCompleteness;
@@ -11,8 +12,14 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Creates a student, or updates one when $student is given.
- * Recomputes the "profile complete" flag on every save.
+ * Creates a student, or updates one when $student is given, from the form
+ * of a section: the student is then on that section's list. Each form
+ * sends only its own fields (the mosque's has the tajweed level and the
+ * pages memorized before, the English section's the English level), so
+ * saving from one never clears what the other wrote.
+ *
+ * Recomputes both "profile complete" flags on every save: a phone number
+ * removed in one section is missing in the other too.
  *
  * The photo is optional and has nothing to do with that flag. A new
  * picture replaces the one the student had; "remove_photo" takes it away.
@@ -29,7 +36,7 @@ final class SaveStudent
      *
      * @throws ValidationException
      */
-    public function handle(array $input, ?Student $student = null): Student
+    public function handle(array $input, ?Student $student = null, Section $section = Section::Mosque): Student
     {
         $data = StudentRequest::validateData($input);
 
@@ -42,15 +49,31 @@ final class SaveStudent
             $data['birth_date'] = Dates::day($data['birth_date']);
         }
 
-        $student ??= new Student;
+        $student ??= $this->newStudentOf($section);
         $student->fill($data);
-        $student->is_profile_complete = $this->completeness->isComplete($student->getAttributes());
+        $student->setAttribute($section->studentFlag(), true);
+
+        foreach (Section::cases() as $each) {
+            $student->setAttribute($each->profileFlag(), $this->completeness->isComplete($student->getAttributes(), $each));
+        }
+
         $student->save();
 
         if ($photo !== null) {
             $this->changePhoto($student, $this->photos->keep($student, $photo));
         } elseif ($removePhoto) {
             $this->changePhoto($student, null);
+        }
+
+        return $student;
+    }
+
+    private function newStudentOf(Section $section): Student
+    {
+        $student = new Student;
+
+        foreach (Section::cases() as $each) {
+            $student->setAttribute($each->studentFlag(), $each === $section);
         }
 
         return $student;

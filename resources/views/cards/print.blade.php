@@ -43,7 +43,7 @@
     </style>
 </head>
 <body>
-    {{-- Defined once, used by every card: the frame the photo is cut to, and the shadow of the circle logo. --}}
+    {{-- Defined once, used by every card: the frames the photos are cut to, and the shadow of the circle logo. --}}
     <svg class="rawda-badge-defs" width="0" height="0" aria-hidden="true" focusable="false">
         <defs>
             <mask id="rawda-badge-photo" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="170" y="211" width="293" height="290">
@@ -52,6 +52,10 @@
             <filter id="rawda-badge-shadow" x="-10%" y="-10%" width="130%" height="130%" color-interpolation-filters="sRGB">
                 <feDropShadow dx="1.36" dy="1.46" stdDeviation="0" flood-color="#171613" flood-opacity="0.84" />
             </filter>
+            {{-- The circle the photo of an English card is cut to (cards/english-badge.blade.php). --}}
+            <clipPath id="rawda-english-photo" clipPathUnits="userSpaceOnUse">
+                <circle cx="319" cy="360" r="150" />
+            </clipPath>
         </defs>
     </svg>
 
@@ -90,14 +94,14 @@
         @foreach ($cards->chunk(CardDesign::cardsPerSheet()) as $page)
             <section class="sheet">
                 @foreach ($page as $card)
-                    <div class="slot">@include('cards.badge', ['card' => $card])</div>
+                    <div class="slot">@include($badge ?? 'cards.badge', ['card' => $card])</div>
                 @endforeach
             </section>
         @endforeach
     @else
         <main class="singles">
             @foreach ($cards as $card)
-                <section class="single">@include('cards.badge', ['card' => $card])</section>
+                <section class="single">@include($badge ?? 'cards.badge', ['card' => $card])</section>
             @endforeach
         </main>
     @endif

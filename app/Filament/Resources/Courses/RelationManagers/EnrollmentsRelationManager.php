@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Courses\RelationManagers;
 
 use App\Actions\Enrollments\EnrollStudent;
+use App\Enums\Section;
 use App\Filament\Support\Attempt;
 use App\Filament\Support\Enrollments\EnrollmentActions;
 use App\Filament\Support\Fields\StudentSelect;
@@ -139,7 +140,7 @@ class EnrollmentsRelationManager extends RelationManager
             ->modalHeading(fn (): string => "تسجيل طالب في {$this->course()->name}")
             ->modalSubmitActionLabel('تسجيل')
             ->schema([
-                StudentSelect::make(scope: fn (Builder $query) => $query->whereDoesntHave(
+                StudentSelect::toEnroll(Section::Mosque, scope: fn (Builder $query) => $query->whereDoesntHave(
                     'enrollments',
                     fn (Builder $query) => $query->where('course_id', $this->course()->getKey()),
                 )),

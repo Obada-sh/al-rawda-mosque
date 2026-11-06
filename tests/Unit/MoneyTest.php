@@ -81,4 +81,13 @@ class MoneyTest extends TestCase
         $this->assertSame(0.0, Money::share('0', '10'));
         $this->assertNull(Money::share('5', '0'));
     }
+
+    public function test_a_difference_may_be_below_zero(): void
+    {
+        $this->assertSame('250.50', Money::difference(1000, '749.50'));
+        $this->assertSame('-249.50', Money::difference(500, '749.50'));
+        $this->assertSame('0.00', Money::difference('12.5', '12.50'));
+        $this->assertSame('-1,250 ل.س', Money::signedPounds(Money::difference(0, 1250)));
+        $this->assertSame('1,250.50 ل.س', Money::signedPounds('1250.50'));
+    }
 }

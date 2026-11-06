@@ -34,6 +34,9 @@ class StudentForm
                         TextInput::make('father_name')
                             ->label('اسم الأب')
                             ->helperText('اختياري. يميّز الطالب عن غيره ممن يحمل الاسم نفسه.'),
+                        TextInput::make('father_work')
+                            ->label('عمل الأب')
+                            ->helperText('اختياري.'),
                         DatePicker::make('birth_date')
                             ->label('تاريخ الميلاد')
                             ->maxDate(fn () => Dates::today()->subDay()),

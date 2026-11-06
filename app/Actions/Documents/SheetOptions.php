@@ -9,7 +9,9 @@ namespace App\Actions\Documents;
  *
  * In the address of the sheet each column is a flag (pages=0 hides the
  * pages); a column that is not named is shown, so the plain address of a
- * sheet shows everything of the course.
+ * sheet shows everything of the course. The notes are the exception: they
+ * are written by the admin about the student, so they are printed only
+ * when asked (notes=1), and the window offers them unticked.
  */
 final readonly class SheetOptions
 {
@@ -20,7 +22,10 @@ final readonly class SheetOptions
     public const ALL_COURSES = 'all';
 
     /** The columns the admin can show or hide, in the order of the table. */
-    public const COLUMNS = ['phones', 'pages', 'exams', 'attendance'];
+    public const COLUMNS = ['phones', 'pages', 'exams', 'attendance', 'notes'];
+
+    /** The columns ticked when the window opens: every one but the notes. */
+    public const DEFAULT_COLUMNS = ['phones', 'pages', 'exams', 'attendance'];
 
     public function __construct(
         public bool $allCourses = false,
@@ -28,6 +33,7 @@ final readonly class SheetOptions
         public bool $pages = true,
         public bool $exams = true,
         public bool $attendance = true,
+        public bool $notes = false,
     ) {}
 
     /**
@@ -43,6 +49,7 @@ final readonly class SheetOptions
             pages: $shown('pages'),
             exams: $shown('exams'),
             attendance: $shown('attendance'),
+            notes: (bool) ($data['notes'] ?? false),
         );
     }
 
@@ -59,6 +66,7 @@ final readonly class SheetOptions
             pages: in_array('pages', $columns, true),
             exams: in_array('exams', $columns, true),
             attendance: in_array('attendance', $columns, true),
+            notes: in_array('notes', $columns, true),
         );
     }
 
@@ -75,6 +83,7 @@ final readonly class SheetOptions
             'pages' => $this->pages ? '1' : '0',
             'exams' => $this->exams ? '1' : '0',
             'attendance' => $this->attendance ? '1' : '0',
+            'notes' => $this->notes ? '1' : '0',
         ];
     }
 
@@ -83,6 +92,6 @@ final readonly class SheetOptions
      */
     public function columnCount(): int
     {
-        return 2 + ($this->phones ? 2 : 0) + (int) $this->pages + (int) $this->exams + (int) $this->attendance;
+        return 2 + ($this->phones ? 2 : 0) + (int) $this->pages + (int) $this->exams + (int) $this->attendance + (int) $this->notes;
     }
 }

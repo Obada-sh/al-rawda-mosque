@@ -7,8 +7,9 @@ use App\Http\Requests\Rules\Picture;
 use App\Support\QuranPages;
 
 /**
- * Creating and editing a student. Only the name is required; the father's
- * name, when given, tells apart students who carry the same name.
+ * Creating and editing a student, from the form of either section. Only
+ * the name is required; the father's name, when given, tells apart
+ * students who carry the same name. The father's work is optional too.
  *
  * The photo is optional: a picture to keep, or a wish to remove the one
  * the student has.
@@ -27,11 +28,13 @@ class StudentRequest extends BaseRequest
         return [
             'full_name' => ['required', 'string', 'min:2', 'max:255'],
             'father_name' => ['nullable', 'string', 'min:2', 'max:255'],
+            'father_work' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date', 'after:1900-01-01', 'before:today'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:'.self::PHONE_PATTERN],
             'guardian_phone' => ['nullable', 'string', 'max:30', 'regex:'.self::PHONE_PATTERN],
             'address' => ['nullable', 'string', 'max:255'],
             'tajweed_level_id' => ['nullable', 'integer', 'exists:tajweed_levels,id'],
+            'english_level_id' => ['nullable', 'integer', 'exists:english_levels,id'],
             'prior_memorized_pages' => ['nullable', 'integer', 'min:0', 'max:'.QuranPages::LAST],
             'notes' => ['nullable', 'string', 'max:5000'],
             'photo' => ['nullable', 'file', 'max:'.self::PHOTO_MAX_KILOBYTES, new Picture],
@@ -54,11 +57,13 @@ class StudentRequest extends BaseRequest
         return [
             'full_name' => 'اسم الطالب',
             'father_name' => 'اسم الأب',
+            'father_work' => 'عمل الأب',
             'birth_date' => 'تاريخ الميلاد',
             'phone' => 'رقم الطالب',
             'guardian_phone' => 'رقم ولي الأمر',
             'address' => 'مكان السكن',
             'tajweed_level_id' => 'مستوى التجويد',
+            'english_level_id' => 'مستوى اللغة الانجليزية',
             'prior_memorized_pages' => 'المحفوظ السابق',
             'notes' => 'ملاحظات',
             'photo' => 'الصورة',

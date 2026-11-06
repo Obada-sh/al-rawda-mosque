@@ -80,6 +80,8 @@ Only the **name** is needed to register a student. `is_profile_complete` is reco
 
 The **father's name** (`students.father_name`) is optional and tells apart students who carry the same name. It is not part of a complete profile; the students who were in the system when it was added (2026-10-20) start without one. It is shown under the name in the students list (and searched there), on the student's page and in the student's file, nowhere else (the user's choice): pickers, cards and slides show the name alone.
 
+The **father's work** (`students.father_work`, «عمل الأب») is optional too, in the forms of both sections. It is not part of a complete profile in either; the students who were in the system when it was added (2026-11-06) start without one. It is shown on the student's page and in the student's file.
+
 A student with history is **archived** (`archived_at`), never deleted. Only a student with no record at all can be deleted (`DeleteStudent`).
 
 A **photo** is optional and says nothing about whether the profile is complete. The picture is a file in the private folder `student-photos` (`Services\Students\StudentPhotos`), `students.photo_path` holds its name, and only the signed-in admin is handed it (`StudentPhotoController`). The form (`Filament\Support\Fields\PhotoUpload`) opens an editor on the chosen picture with a circle of the card's proportions over it: the admin moves and zooms the picture until the face is in the circle, and what is inside it is what the card shows (the card's frame is the circle inscribed in its square). The browser then sends the square, at most 500 px; `SaveStudent` checks that the file really is a JPG, PNG or WebP by looking inside it (`Support\PictureFile`, no image extension of PHP needed). Every new photo gets a new file name, so its address changes and no browser shows the old one. It appears in the students list (once any student has one), in the student's file, in the answer of the scan screen and on the printed card.
@@ -252,12 +254,12 @@ On A4 under the mosque's logo (see docs/architecture.md for how they are drawn):
 
 - **The student's file** (`PrepareStudentFile`): the details, then for each course (or the one chosen) the figures, every recitation and every held session, attended or not.
 - **The files of many students** (`PrepareStudentFiles`, `StudentFilesRequest`, «ملفات A4» above the students list and «ملفات A4 للمحدَّدين» for the ticked rows): each student's file as above, one after the other by name, each starting on a page of its own. `scope=all` (archived too with `archived=1`), `course` + `course_id` or `circle` + `circle_id` (the students who did not leave it; `history=course` keeps that course only in each file), `chosen` + `student_ids[]` (at most 500). Both build files with `StudentFileBuilder`; the view is `documents/partials/student-file`.
-- **The list of a circle's students** (`PrepareCircleSheets`, «كشف الطلاب»): the current students of the circle with the columns the admin ticks (`SheetOptions`: phones, pages, exams, attendance; in the address of the page each is a flag, and a column not named is shown). Their records are those of the course of the circle, or with `history=all` everything since they joined the system: the sheet a teacher is given for the new students of a new course.
+- **The list of a circle's students** (`PrepareCircleSheets`, «كشف الطلاب»): the current students of the circle with the columns the admin ticks (`SheetOptions`: phones, pages, exams, attendance, notes; in the address of the page each is a flag, and a column not named is shown, except the notes: they are what the admin wrote about the student, so they are printed only with `notes=1`, and the window offers them unticked). Their records are those of the course of the circle, or with `history=all` everything since they joined the system: the sheet a teacher is given for the new students of a new course.
   - **Pages**: how many and which, written short ("1–20، 25": `Support\PageRanges`). In the course: the pages first memorized by a recitation of this enrollment (`student_pages.recitation_id`); in every course: all of the student's `student_pages`, and the pages memorized before the system (`prior_memorized_pages`).
   - **Exams**: one mark per juz, the grade of its last exam or «بانتظار السبر» (`SheetExam`); the footer counts the juz passed.
   - **Attendance**: sessions attended of those held while in the course (in every course: summed).
 - **The attendance codes of a circle**: each student's name over the QR of their card, 15 to a page.
-- **The list of the mosque's students** (`PrepareMosqueSheet`, «كشف كل طلاب الجامع», `MosqueSheetRequest`): one table by name, without choosing a circle, with a column for each student's circle and the same columns as the circle's list. `history=all`: every student in the system, also those in no course yet, with everything since they joined; the circle is the one of their enrollments they did not leave in the running courses («—» when none; both when two running courses); archived students only with `archived=1` (marked «ملفه مؤرشف»). `history=course` + `course_id`: the students of that course who did not leave it, from all its circles, with what they did in it.
+- **The list of the mosque's students** (`PrepareMosqueSheet`, «كشف كل طلاب الجامع», `MosqueSheetRequest`): one table by name, without choosing a circle, with a column for each student's circle and the same columns as the circle's list. `history=all`: every student in the system, also those in no course yet, with everything since they joined; the circle is the one of their enrollments they did not leave in the running courses («—» when none; both when two running courses); archived students only with `archived=1` (marked «ملفه مؤرشف»). `history=course` + `course_id`: the students of that course who did not leave it, from all its circles, with what they did in it. With `order=circles` («حسب الحلقات») the same students are printed circle by circle instead: each circle that has students under its name (with its team, and with `history=all` its course; the circles of the oldest running course first, then by name), its students by name, without the column of the circle; with `history=all` the students in no circle now come last («بلا حلقة الآن»), and a student of two running courses is under both circles (the sheet's count counts them once).
 
 Both lists build their records with `SheetRecords` (`inCourse()` by enrollment, `sinceJoining()` by student → `StudentRecord`) and print a `SheetLine` per student through the same table (`documents/partials/students-table`).
 
@@ -313,6 +315,40 @@ Table `settings`, read through `SettingsStore`, keys in `Support\SettingKey`: th
 ## The mosque's logo
 
 The logo is one file of the application, `public/img/logo.png` (see-through background), read through `Support\Brand` with the mosque's name. It is on every page of the panel and above the sign-in form (the panel's brand), at the top of the home page (`Widgets\MosqueBanner`), on the letterhead of every report (`Widgets\Reports\Letterhead`: the report, what its filter covers, the day; a report prints with it, without the menu and the filter), on the setup page, on the card print page, baked into the card, and in the default slide template (`resources/pptx/leaders.pptx`, a picture of the slide: replace it there in PowerPoint after changing the logo). `public/img/favicon.png` is the browser tab's icon.
+
+## The English section («دورة انجليزي»)
+
+A second section of the system, with its own panel (`/english`, `Providers\Filament\EnglishPanelProvider`) and its own tables (`english_*`, see [erd.sql](erd.sql), version 6). The switch at the top of every page (`Filament\Support\SectionSwitcher`) moves between the mosque's courses and the English courses. Nothing of one section is ever counted in the other: the mosque's statistics, reports, scan desk, market and expenses read the mosque's tables only, and the English pages read theirs.
+
+```mermaid
+erDiagram
+    english_levels ||--o{ students : "English level of"
+    english_levels ||--o{ english_courses : "level of"
+    english_courses ||--o{ english_course_schedules : "weekly days"
+    english_courses ||--o{ english_halls : "has"
+    english_teachers ||--o{ english_halls : "teacher / assistant"
+    students ||--o{ english_enrollments : "enrolls"
+    english_courses ||--o{ english_enrollments : "has"
+    english_halls ||--o{ english_enrollments : "current hall"
+    english_courses ||--o{ english_sessions : "class days"
+    english_sessions ||--o{ english_attendances : "on"
+    english_enrollments ||--o{ english_attendances : "owns"
+    english_enrollments ||--o{ english_payments : "pays"
+    english_courses ||--o{ english_tests : "holds"
+    english_tests ||--o{ english_test_results : "marks"
+    english_enrollments ||--o{ english_test_results : "owns"
+    english_courses ||--o{ english_papers : "has"
+    english_departments ||--o{ english_expenses : "has"
+```
+
+- **Shared students.** The `students` table is the only one the sections share: one record per person. `in_mosque` / `in_english` say which lists the student is on (each section lists its own, `StudentResource` / `EnglishStudentResource`); a student of both is the same record in both. Each section's form sends only its own fields, so the English form (English level) never clears the mosque's (tajweed level, pages memorized before) and the other way round (`SaveStudent` with a `Section`). Both "profile complete" flags are recomputed on every save (`ProfileCompleteness::requiredFields(Section)`): the mosque needs the tajweed level and the prior pages, the English section the English level. Archiving is the mosque's alone. Deleting a student from one list keeps them for the other (`DeleteStudent`).
+- **Enrolling.** Any student can be enrolled in an English course (`EnrollEnglishStudent`): a mosque student is found by name and joins the English list (`SectionMembership`), and gets the course's level when they have no English level yet. A new student is registered and enrolled together, or not at all (`RegisterEnglishStudent`). The mosque's course enrollment offers the English students too, the same way.
+- **Halls** are the circles of the English section, each with a teacher and an assistant from the English section's own teachers (`english_teachers`).
+- **Price and payments.** A course has a price in whole Syrian pounds; a student may have a price of their own with its reason (`ChangeEnglishPrice`). A payment never takes the student beyond their price, and a price never goes below what was paid (`RecordEnglishPayment`, `SaveEnglishCourse`, `ChangeEnglishPrice`; the course row is locked first, then the student's, so a payment and a change of price cannot slip past each other). `EnglishBalances` says what is due, paid and remaining; `EnglishMoneyReport` adds it up per student, per course and for everything; `EnglishFinanceReport` puts the payments next to the section's expenses (`english_expenses`, in `english_departments`) and gives the net, which may be below zero (`Money::difference`).
+- **Attendance** follows the mosque's rules on the English tables (`RecordEnglishScan`, `EnglishSessionResolver`, `EnglishEnrollmentCalendar`), without points. Card codes are never shared between the sections (`NumericCardCodeGenerator` checks both), so a card scanned at the wrong desk is told as the other section's (`ScanStatus::EnglishCard` / `MosqueCard`).
+- **Cards** are drawn on the design of the course's level (`english_levels.card_background_path`, the whole face of the card, 54 × 86 mm), with the photo, name, hall and level, course and QR code over it (`cards/english-badge.blade.php`). A level without a design prints a plain card.
+- **Tests** are exams or recitations held on paper or aloud: the system keeps the title, the day, the full mark and each student's mark, or absent, and a note (`SaveEnglishTest`, `SaveEnglishTestResults`). Only students in the course on the day of the test can have a mark, and a mark is never above the full mark.
+- **Papers** are files of a course (PDF, pictures, Office files) kept on the private disk under `english-papers/` and carried by every backup (`EnglishPapers`, `KeptFiles`). For now the admin keeps and opens them; the students will see them later.
 
 ## Open questions from the plan
 

@@ -3,6 +3,8 @@
 namespace App\Services\Backup;
 
 use App\Services\Circles\CircleLogos;
+use App\Services\English\EnglishCardBackgrounds;
+use App\Services\English\EnglishPapers;
 use App\Services\Export\LeadersTemplates;
 use App\Services\Market\MarketItemPictures;
 use App\Services\Students\StudentPhotos;
@@ -13,8 +15,9 @@ use Illuminate\Contracts\Filesystem\Filesystem;
 /**
  * The files that are not in the database and therefore travel with every
  * backup: the admin's own slide template, the photos of the students and
- * of the teachers, the logos of the circles and the pictures of the
- * points markets' items.
+ * of the teachers, the logos of the circles, the pictures of the points
+ * markets' items, and the English section's card designs and course
+ * papers.
  */
 final class KeptFiles
 {
@@ -25,6 +28,8 @@ final class KeptFiles
         TeacherPhotos::FOLDER,
         CircleLogos::FOLDER,
         MarketItemPictures::FOLDER,
+        EnglishCardBackgrounds::FOLDER,
+        EnglishPapers::FOLDER,
     ];
 
     /** A file of one of those folders: "slide-templates/leaders.pptx". */

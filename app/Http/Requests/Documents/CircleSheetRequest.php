@@ -48,6 +48,7 @@ class CircleSheetRequest extends BaseRequest
             'pages' => 'الصفحات المحفوظة',
             'exams' => 'السبر',
             'attendance' => 'الحضور',
+            'notes' => 'الملاحظات',
         ];
     }
 }

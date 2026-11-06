@@ -8,6 +8,7 @@ use App\Exceptions\BusinessRuleViolation;
 use App\Http\Requests\Attendance\ScanAttendanceRequest;
 use App\Models\Attendance;
 use App\Models\CourseSession;
+use App\Models\English\EnglishEnrollment;
 use App\Models\Enrollment;
 use App\Services\Attendance\SessionResolver;
 use App\Services\Points\PointsLedger;
@@ -58,7 +59,9 @@ final class RecordScanAttendance
             ->first();
 
         if ($enrollment === null) {
-            return new ScanResult(ScanStatus::UnknownCard);
+            return new ScanResult(EnglishEnrollment::query()->where('card_code', $data['card_code'])->exists()
+                ? ScanStatus::EnglishCard
+                : ScanStatus::UnknownCard);
         }
 
         // Told with the day when it is not today.

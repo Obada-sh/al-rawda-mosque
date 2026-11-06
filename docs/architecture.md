@@ -60,7 +60,7 @@ Two kinds of failure, and they are never mixed:
 
 `BusinessRuleViolation::because('enrollment.duplicate', 'الطالب مسجَّل مسبقاً في هذه الدورة.')` carries a **stable key** (`$violation->rule`) and the **Arabic message**. Tests assert on the key, the admin reads the message. Each action lists the keys it can throw in the `@throws` line of `handle()`.
 
-The scan actions deliberately do not throw for expected situations: `Attendance\ScanCard` (the scan screen's one entry, which hands a teacher's card to `RecordTeacherScan` and a student's to `RecordScanAttendance`, for today or for the earlier day the desk is set to) returns a `ScanResult` with a `ScanStatus` (recorded, already recorded, unknown card, not a class day, ...). The scan screen must always have something to show in a colour, including for a card it does not know. In the same spirit `RecordBulkAttendance` records many students at once and returns a `BulkAttendanceResult` (who was recorded, who already was, who was refused and why) instead of stopping at the first refusal.
+The scan actions deliberately do not throw for expected situations: `Attendance\ScanCard` (the scan screen's one entry, which hands a teacher's card to `RecordTeacherScan` and a student's to `RecordScanAttendance`, for today or for the earlier day the desk is set to) returns a `ScanResult` with a `ScanStatus` (recorded, already recorded, unknown card, not a class day, ...). The scan screen must always have something to show in a colour, including for a card it does not know. In the same spirit `RecordBulkAttendance` records many students at once and returns a `BulkAttendanceResult` (who was recorded, who already was, who was refused and why) instead of stopping at the first refusal. The points desk (`Pages\ScanPoints`) reads only: `Points\LookUpCardPoints` returns a `CardPoints` with a `PointsLookupStatus` (found, a teacher's card, an English card, unknown) and, for a student, the balance `Services\Market\PointsBalance` gives the sales desk, so the two desks never disagree.
 
 ### Services: shared reads and calculations
 
@@ -118,12 +118,17 @@ Filament/
       Tables/<Plural>Table.php    the columns, filters and row buttons
       RelationManagers/           tables shown inside another record (a course's circles, ...)
   Pages/                          screens that are not a table of one model:
-                                  ScanAttendance, Backups, ManageSettings, Reports/*, Auth/*
+                                  ScanAttendance, ScanPoints, Market/SalesDesk, Backups, ManageSettings, Reports/*, Auth/*
   Widgets/                        the parts of the home page (MosqueBanner, OverviewStats) and of the
                                   report pages (Reports/Letterhead heads every report)
   Support/                        everything screens share (see below)
   Enums/PanelGroup.php            the sections of the side menu, in order
+  English/                        the English section's panel (/english): Resources, Pages, Widgets,
+                                  Support and EnglishPanelGroup, laid out the same way. It is outside
+                                  Resources/Pages/Widgets, so neither panel ever finds the other's screens.
 ```
+
+The two panels (`AdminPanelProvider`, `EnglishPanelProvider`) share everything but their screens, id, address and colour through `Providers\Filament\Concerns\SharesPanelSetup`: the sign-in, the account, the switch between the sections, the backups and reminders. A link made outside a page of its own panel names its panel (`FilamentAdminNotifier`, `getUrl(panel: 'english')`).
 
 ### `Attempt`: the single doorway
 

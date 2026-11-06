@@ -1,6 +1,6 @@
 -- =====================================================================
 --  نظام إدارة الجامع (rawda) — مخطط قاعدة البيانات الكامل
---  MySQL 8.x · 28 جدولاً · utf8mb4
+--  MySQL 8.x · 42 جدولاً · utf8mb4
 --
 --  الإصدار 2 (2026-10-08): أضيف جدولا النشاطات activities و activity_attendances،
 --  ومصدر رابع للنقاط (activity) مع العمود activity_attendance_id،
@@ -17,6 +17,13 @@
 --
 --  الإصدار 5 (2026-10-20): اسم الأب الاختياري students.father_name، يميّز
 --  الطلاب الذين يحملون الاسم نفسه.
+--
+--  الإصدار 6 (2026-11-05): قسم «دورة انجليزي» بجداوله الخاصة (english_*)
+--  منفصلاً عن دورات المسجد، والطلاب مشتركون بين القسمين: أعمدة
+--  students.in_mosque و in_english (في قائمة أي قسم)، و english_level_id
+--  (مستوى اللغة)، و english_profile_complete (اكتمال الملف في قسم الانجليزي).
+--
+--  الإصدار 7 (2026-11-06): عمل الأب الاختياري students.father_work.
 --
 --  للاستعراض في MySQL Workbench بدون إنشاء أي شيء على السيرفر:
 --    File > Import > Reverse Engineer MySQL Create Script...
@@ -59,16 +66,33 @@ CREATE TABLE `tajweed_levels` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='مستويات التجويد الأربعة';
 
+CREATE TABLE `english_levels` (
+  `id`                   BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  `name`                 VARCHAR(100)     NOT NULL,
+  `sort_order`           TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  `card_background_path` VARCHAR(255)     NULL
+      COMMENT 'تصميم بطاقة طلاب المستوى (وجه البطاقة كاملاً): english-cards/<file>',
+  `created_at`           TIMESTAMP        NULL,
+  `updated_at`           TIMESTAMP        NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_levels_name_unique` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='مستويات قسم الانجليزي: A1 A2 B1 B2 C1 C2 ويضيف الأدمن غيرها';
+
 CREATE TABLE `students` (
   `id`                    BIGINT UNSIGNED   NOT NULL AUTO_INCREMENT,
   `full_name`             VARCHAR(255)      NOT NULL,
   `father_name`           VARCHAR(255)      NULL
       COMMENT 'اختياري: يميّز الطلاب الذين يحملون الاسم نفسه',
+  `father_work`           VARCHAR(255)      NULL
+      COMMENT 'اختياري: عمل الأب',
   `birth_date`            DATE              NULL,
   `phone`                 VARCHAR(30)       NULL,
   `guardian_phone`        VARCHAR(30)       NULL,
   `address`               VARCHAR(255)      NULL,
   `tajweed_level_id`      BIGINT UNSIGNED   NULL,
+  `english_level_id`      BIGINT UNSIGNED   NULL
+      COMMENT 'مستوى اللغة الانجليزية للطالب (قسم الانجليزي)',
   `prior_memorized_pages` SMALLINT UNSIGNED NULL
       COMMENT 'المحفوظ قبل دخول النظام، كعدد صفحات',
   `recited_pages_count`   SMALLINT UNSIGNED NOT NULL DEFAULT 0
@@ -76,8 +100,16 @@ CREATE TABLE `students` (
   `notes`                 TEXT              NULL,
   `photo_path`            VARCHAR(255)      NULL
       COMMENT 'اسم ملف الصورة الشخصية (اختيارية) في المجلد الخاص student-photos',
-  `is_profile_complete`   TINYINT(1)        NOT NULL DEFAULT 0,
-  `archived_at`           TIMESTAMP         NULL,
+  `is_profile_complete`   TINYINT(1)        NOT NULL DEFAULT 0
+      COMMENT 'ملف المسجد مكتمل',
+  `english_profile_complete` TINYINT(1)     NOT NULL DEFAULT 0
+      COMMENT 'ملف قسم الانجليزي مكتمل (المستوى بدل التجويد والمحفوظ)',
+  `in_mosque`             TINYINT(1)        NOT NULL DEFAULT 1
+      COMMENT 'في قائمة دورات المسجد',
+  `in_english`            TINYINT(1)        NOT NULL DEFAULT 0
+      COMMENT 'في قائمة دورة انجليزي',
+  `archived_at`           TIMESTAMP         NULL
+      COMMENT 'أرشفة المسجد: لا تخفي الطالب من قسم الانجليزي',
   `created_at`            TIMESTAMP         NULL,
   `updated_at`            TIMESTAMP         NULL,
   PRIMARY KEY (`id`),
@@ -86,9 +118,12 @@ CREATE TABLE `students` (
   KEY `students_tajweed_level_id_index` (`tajweed_level_id`),
   CONSTRAINT `students_tajweed_level_id_fk`
     FOREIGN KEY (`tajweed_level_id`) REFERENCES `tajweed_levels` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `students_english_level_id_fk`
+    FOREIGN KEY (`english_level_id`) REFERENCES `english_levels` (`id`)
     ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='الطلاب. الاسم فقط إلزامي';
+  COMMENT='الطلاب، مشتركون بين القسمين. الاسم فقط إلزامي';
 
 CREATE TABLE `teachers` (
   `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -615,3 +650,224 @@ CREATE TABLE `settings` (
   UNIQUE KEY `settings_key_unique` (`key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='إعدادات النظام: اسم المسجد، فاصل التذكير، تواريخ آخر تذكير ونسخة';
+
+-- ---------------------------------------------------------------------
+-- 7) دورة انجليزي (قسم منفصل: جداوله لا تدخل في أي شيء من المسجد)
+-- ---------------------------------------------------------------------
+
+CREATE TABLE `english_teachers` (
+  `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `full_name`  VARCHAR(255)    NOT NULL,
+  `phone`      VARCHAR(30)     NULL,
+  `is_active`  TINYINT(1)      NOT NULL DEFAULT 1,
+  `notes`      TEXT            NULL,
+  `created_at` TIMESTAMP       NULL,
+  `updated_at` TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  KEY `english_teachers_is_active_index` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='أساتذة الانجليزي: قائمة مستقلة عن أساتذة المسجد';
+
+CREATE TABLE `english_courses` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`             VARCHAR(255)    NOT NULL,
+  `english_level_id` BIGINT UNSIGNED NOT NULL,
+  `price`            INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT 'ل.س للدورة كلها',
+  `start_date`       DATE            NOT NULL,
+  `end_date`         DATE            NULL,
+  `status`           ENUM('active','finished') NOT NULL DEFAULT 'active',
+  `created_at`       TIMESTAMP       NULL,
+  `updated_at`       TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  KEY `english_courses_status_index` (`status`),
+  CONSTRAINT `english_courses_english_level_id_fk` FOREIGN KEY (`english_level_id`) REFERENCES `english_levels` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='دورات الانجليزي: لكل دورة مستوى وسعر';
+
+CREATE TABLE `english_course_schedules` (
+  `id`                BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  `english_course_id` BIGINT UNSIGNED  NOT NULL,
+  `weekday`           TINYINT UNSIGNED NOT NULL COMMENT '0 الأحد ... 6 السبت',
+  `start_time`        TIME             NOT NULL,
+  `end_time`          TIME             NOT NULL,
+  `created_at`        TIMESTAMP        NULL,
+  `updated_at`        TIMESTAMP        NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_course_schedules_english_course_id_weekday_unique` (`english_course_id`, `weekday`),
+  CONSTRAINT `english_course_schedules_course_fk` FOREIGN KEY (`english_course_id`) REFERENCES `english_courses` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='أيام دوام دورة الانجليزي';
+
+CREATE TABLE `english_halls` (
+  `id`                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `english_course_id` BIGINT UNSIGNED NOT NULL,
+  `name`              VARCHAR(150)    NOT NULL,
+  `teacher_id`        BIGINT UNSIGNED NULL,
+  `assistant_id`      BIGINT UNSIGNED NULL,
+  `is_active`         TINYINT(1)      NOT NULL DEFAULT 1,
+  `created_at`        TIMESTAMP       NULL,
+  `updated_at`        TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_halls_english_course_id_name_unique` (`english_course_id`, `name`),
+  CONSTRAINT `english_halls_course_fk` FOREIGN KEY (`english_course_id`) REFERENCES `english_courses` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `english_halls_teacher_fk` FOREIGN KEY (`teacher_id`) REFERENCES `english_teachers` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `english_halls_assistant_fk` FOREIGN KEY (`assistant_id`) REFERENCES `english_teachers` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='قاعات الدورة (بدل الحلقات)، لكل قاعة أستاذ ومساعد';
+
+CREATE TABLE `english_enrollments` (
+  `id`                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `student_id`        BIGINT UNSIGNED NOT NULL,
+  `english_course_id` BIGINT UNSIGNED NOT NULL,
+  `english_hall_id`   BIGINT UNSIGNED NOT NULL,
+  `card_code`         VARCHAR(20)     NOT NULL COMMENT 'رمز البطاقة، لا يتكرر مع بطاقات المسجد',
+  `enrolled_on`       DATE            NOT NULL,
+  `left_on`           DATE            NULL,
+  `price`             INT UNSIGNED    NULL COMMENT 'سعر خاص بالطالب (خصم)؛ NULL = سعر الدورة',
+  `price_note`        VARCHAR(255)    NULL COMMENT 'سبب السعر الخاص',
+  `created_at`        TIMESTAMP       NULL,
+  `updated_at`        TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_enrollments_card_code_unique` (`card_code`),
+  UNIQUE KEY `english_enrollments_student_id_english_course_id_unique` (`student_id`, `english_course_id`),
+  CONSTRAINT `english_enrollments_student_fk` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `english_enrollments_course_fk` FOREIGN KEY (`english_course_id`) REFERENCES `english_courses` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `english_enrollments_hall_fk` FOREIGN KEY (`english_hall_id`) REFERENCES `english_halls` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='طالب في دورة انجليزي، في قاعة، ببطاقة حضور';
+
+CREATE TABLE `english_sessions` (
+  `id`                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `english_course_id` BIGINT UNSIGNED NOT NULL,
+  `session_date`      DATE            NOT NULL,
+  `status`            ENUM('held','cancelled') NOT NULL DEFAULT 'held',
+  `created_at`        TIMESTAMP       NULL,
+  `updated_at`        TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_sessions_english_course_id_session_date_unique` (`english_course_id`, `session_date`),
+  CONSTRAINT `english_sessions_course_fk` FOREIGN KEY (`english_course_id`) REFERENCES `english_courses` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='أيام دوام دورة الانجليزي الفعلية';
+
+CREATE TABLE `english_attendances` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `english_session_id`    BIGINT UNSIGNED NOT NULL,
+  `english_enrollment_id` BIGINT UNSIGNED NOT NULL,
+  `scanned_at`            DATETIME        NULL,
+  `method`                ENUM('qr','manual') NOT NULL DEFAULT 'qr',
+  `created_at`            TIMESTAMP       NULL,
+  `updated_at`            TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_attendances_session_enrollment_unique` (`english_session_id`, `english_enrollment_id`),
+  CONSTRAINT `english_attendances_session_fk` FOREIGN KEY (`english_session_id`) REFERENCES `english_sessions` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `english_attendances_enrollment_fk` FOREIGN KEY (`english_enrollment_id`) REFERENCES `english_enrollments` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='حضور طلاب الانجليزي';
+
+CREATE TABLE `english_payments` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `english_enrollment_id` BIGINT UNSIGNED NOT NULL,
+  `amount`                INT UNSIGNED    NOT NULL COMMENT 'ل.س',
+  `paid_on`               DATE            NOT NULL,
+  `notes`                 VARCHAR(255)    NULL,
+  `created_at`            TIMESTAMP       NULL,
+  `updated_at`            TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  KEY `english_payments_paid_on_index` (`paid_on`),
+  CONSTRAINT `english_payments_enrollment_fk` FOREIGN KEY (`english_enrollment_id`) REFERENCES `english_enrollments` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='دفعات الطلاب عن الدورة: لا يتجاوز مجموعها سعر الطالب';
+
+CREATE TABLE `english_tests` (
+  `id`                BIGINT UNSIGNED   NOT NULL AUTO_INCREMENT,
+  `english_course_id` BIGINT UNSIGNED   NOT NULL,
+  `title`             VARCHAR(255)      NOT NULL,
+  `kind`              ENUM('exam','recitation') NOT NULL,
+  `held_on`           DATE              NOT NULL,
+  `max_mark`          SMALLINT UNSIGNED NOT NULL,
+  `notes`             TEXT              NULL,
+  `created_at`        TIMESTAMP         NULL,
+  `updated_at`        TIMESTAMP         NULL,
+  PRIMARY KEY (`id`),
+  KEY `english_tests_english_course_id_held_on_index` (`english_course_id`, `held_on`),
+  CONSTRAINT `english_tests_course_fk` FOREIGN KEY (`english_course_id`) REFERENCES `english_courses` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='امتحان أو تسميع (على الورق أو شفهياً)، بعلامته الكاملة';
+
+CREATE TABLE `english_test_results` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `english_test_id`       BIGINT UNSIGNED NOT NULL,
+  `english_enrollment_id` BIGINT UNSIGNED NOT NULL,
+  `mark`                  DECIMAL(6,2)    NULL COMMENT 'NULL للغائب',
+  `is_absent`             TINYINT(1)      NOT NULL DEFAULT 0,
+  `notes`                 VARCHAR(255)    NULL,
+  `created_at`            TIMESTAMP       NULL,
+  `updated_at`            TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_test_results_test_enrollment_unique` (`english_test_id`, `english_enrollment_id`),
+  CONSTRAINT `english_test_results_test_fk` FOREIGN KEY (`english_test_id`) REFERENCES `english_tests` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `english_test_results_enrollment_fk` FOREIGN KEY (`english_enrollment_id`) REFERENCES `english_enrollments` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='علامة كل طالب في الامتحان';
+
+CREATE TABLE `english_papers` (
+  `id`                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `english_course_id` BIGINT UNSIGNED NOT NULL,
+  `title`             VARCHAR(255)    NOT NULL,
+  `file_path`         VARCHAR(255)    NOT NULL COMMENT 'english-papers/<file>',
+  `original_name`     VARCHAR(255)    NOT NULL,
+  `mime_type`         VARCHAR(150)    NOT NULL,
+  `size`              INT UNSIGNED    NOT NULL COMMENT 'بايت',
+  `notes`             TEXT            NULL,
+  `created_at`        TIMESTAMP       NULL,
+  `updated_at`        TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `english_papers_course_fk` FOREIGN KEY (`english_course_id`) REFERENCES `english_courses` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='أوراق الدورة: ملفات وصور';
+
+CREATE TABLE `english_departments` (
+  `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`       VARCHAR(150)    NOT NULL,
+  `is_active`  TINYINT(1)      NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP       NULL,
+  `updated_at` TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `english_departments_name_unique` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='أقسام مصاريف الانجليزي، مستقلة عن أقسام المسجد';
+
+CREATE TABLE `english_expenses` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `english_department_id` BIGINT UNSIGNED NOT NULL,
+  `item_name`             VARCHAR(255)    NOT NULL,
+  `quantity`              DECIMAL(12,3)   NULL,
+  `unit_price`            DECIMAL(14,2)   NULL,
+  `total`                 DECIMAL(16,2)   NOT NULL,
+  `expense_date`          DATE            NOT NULL,
+  `notes`                 TEXT            NULL,
+  `created_at`            TIMESTAMP       NULL,
+  `updated_at`            TIMESTAMP       NULL,
+  PRIMARY KEY (`id`),
+  KEY `english_expenses_department_date_index` (`english_department_id`, `expense_date`),
+  KEY `english_expenses_expense_date_index` (`expense_date`),
+  CONSTRAINT `english_expenses_department_fk` FOREIGN KEY (`english_department_id`) REFERENCES `english_departments` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='مصاريف قسم الانجليزي';

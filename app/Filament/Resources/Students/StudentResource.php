@@ -58,13 +58,16 @@ class StudentResource extends Resource
     }
 
     /**
+     * The mosque's students only: one of the English section alone is not
+     * found here, in the list, the search or by the address of the page.
+     *
      * The list shows each student's level, current circles and waiting
      * exams, and its buttons need how many courses each student has, so
      * they are loaded with the students instead of one query per row.
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->withCount('enrollments')->with([
+        return parent::getEloquentQuery()->inMosque()->withCount('enrollments')->with([
             'tajweedLevel',
             'juzExams' => fn ($query) => $query->pending(),
             'enrollments' => fn ($query) => $query

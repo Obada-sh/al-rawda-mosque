@@ -322,11 +322,34 @@ body {
     line-height: 1.5;
 }
 
+/*
+ * What the admin wrote, as written: its own lines kept. Narrow enough that
+ * the table with every column ticked still fits the width of the page; a
+ * long word breaks rather than pushing the table out.
+ */
+.sheet-table__notes {
+    min-width: 22mm;
+    font-size: 9pt;
+    line-height: 1.5;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
 .sheet-table__detail {
     display: block;
     font-size: 8.5pt;
     font-weight: 400;
     color: var(--muted);
+}
+
+/* The mosque's sheet circle by circle: each circle a block, its heading kept with its table. */
+.sheet-group {
+    margin-bottom: 6mm;
+}
+
+.sheet-total {
+    margin: 2mm 0 0;
+    font-weight: 700;
 }
 
 .sheet-note {

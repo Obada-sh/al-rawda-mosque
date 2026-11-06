@@ -12,6 +12,7 @@ use App\Filament\Pages\Reports\FinanceReport;
 use App\Filament\Pages\Reports\KnightRanking;
 use App\Filament\Pages\Reports\Statistics;
 use App\Filament\Pages\ScanAttendance;
+use App\Filament\Pages\ScanPoints;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\Courses\CourseResource;
@@ -45,6 +46,7 @@ class PagesRenderTest extends PanelTestCase
         return [
             'home' => [fn (): string => Dashboard::getUrl()],
             'scan attendance' => [fn (): string => ScanAttendance::getUrl()],
+            'points desk' => [fn (): string => ScanPoints::getUrl()],
             'settings' => [fn (): string => ManageSettings::getUrl()],
             'my account' => [fn (): string => (string) Filament::getDefaultPanel()->getProfileUrl()],
             'students' => [fn (): string => StudentResource::getUrl()],

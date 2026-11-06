@@ -19,9 +19,15 @@ use Filament\Notifications\Notification;
  * Every notification is stored for the bell at the top of the panel. One
  * that needs attention now (a student just completed a juz) is also shown
  * on screen at once to the admin who is working.
+ *
+ * The links open the mosque's pages, whichever section the admin is in
+ * when the notification is made (a backup taken while working in the
+ * English section).
  */
 final class FilamentAdminNotifier implements AdminNotifier
 {
+    private const PANEL = 'admin';
+
     public function juzExamPending(JuzExam $exam): void
     {
         $exam->loadMissing('student');
@@ -49,7 +55,7 @@ final class FilamentAdminNotifier implements AdminNotifier
                 ->actions([
                     Action::make('students')
                         ->label('عرض الملفات غير المكتملة')
-                        ->url(StudentResource::getUrl('index', ['tab' => 'incomplete']))
+                        ->url(StudentResource::getUrl('index', ['tab' => 'incomplete'], panel: self::PANEL))
                         ->markAsRead(),
                 ]),
         );
@@ -65,7 +71,7 @@ final class FilamentAdminNotifier implements AdminNotifier
                 ->actions([
                     Action::make('backups')
                         ->label('فتح النسخ الاحتياطي')
-                        ->url(Backups::getUrl())
+                        ->url(Backups::getUrl(panel: self::PANEL))
                         ->markAsRead(),
                 ]),
         );
@@ -102,7 +108,7 @@ final class FilamentAdminNotifier implements AdminNotifier
     {
         return Action::make('backups')
             ->label('فتح النسخ الاحتياطي')
-            ->url(Backups::getUrl())
+            ->url(Backups::getUrl(panel: self::PANEL))
             ->markAsRead();
     }
 
@@ -118,7 +124,7 @@ final class FilamentAdminNotifier implements AdminNotifier
     {
         return Action::make('exams')
             ->label('فتح صفحة السبر')
-            ->url(JuzExamResource::getUrl());
+            ->url(JuzExamResource::getUrl(panel: self::PANEL));
     }
 
     /**

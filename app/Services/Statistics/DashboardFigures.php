@@ -20,12 +20,12 @@ final class DashboardFigures
 {
     public function activeStudents(): int
     {
-        return Student::query()->active()->count();
+        return Student::query()->inMosque()->active()->count();
     }
 
     public function incompleteProfiles(): int
     {
-        return Student::query()->active()->incompleteProfile()->count();
+        return Student::query()->inMosque()->active()->incompleteProfile()->count();
     }
 
     public function activeCourses(): int

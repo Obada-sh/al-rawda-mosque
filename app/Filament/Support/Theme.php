@@ -2,6 +2,8 @@
 
 namespace App\Filament\Support;
 
+use Filament\Support\Colors\Color;
+
 /**
  * The few visual constants that more than one part of the panel needs.
  */
@@ -14,7 +16,7 @@ final class Theme
     public const SURFACE = '#ffffff';
 
     /**
-     * The green of the panel, from the lightest shade to the darkest.
+     * The green of the mosque's panel, from the lightest shade to the darkest.
      *
      * It is the stock emerald moved one step darker, with a shade of its
      * own at 500. The stock one is too light to carry white text, so the
@@ -37,6 +39,14 @@ final class Theme
         900 => 'oklch(0.262 0.051 172.552)',
         950 => 'oklch(0.2 0.04 172)',
     ];
+
+    /**
+     * The blue of the English courses' panel, so the admin always sees
+     * which section a page belongs to. The stock blue carries white text.
+     *
+     * @var array<int, string>
+     */
+    public const ENGLISH_PRIMARY = Color::Blue;
 
     /**
      * Colours that tell series apart in a chart, in a fixed order.

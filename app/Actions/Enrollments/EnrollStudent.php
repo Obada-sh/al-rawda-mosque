@@ -3,23 +3,29 @@
 namespace App\Actions\Enrollments;
 
 use App\Contracts\CardCodeGenerator;
+use App\Enums\Section;
 use App\Exceptions\BusinessRuleViolation;
 use App\Http\Requests\Enrollments\EnrollmentRequest;
 use App\Models\Circle;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Student;
+use App\Services\Students\SectionMembership;
 use App\Support\Dates;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Enrolls a student in a course, in the circle the admin picked, and
- * issues their attendance card code.
+ * issues their attendance card code. A student of the English section is
+ * put on the mosque's list as well.
  */
 final class EnrollStudent
 {
-    public function __construct(private readonly CardCodeGenerator $cardCodes) {}
+    public function __construct(
+        private readonly CardCodeGenerator $cardCodes,
+        private readonly SectionMembership $sections,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $input
@@ -62,6 +68,9 @@ final class EnrollStudent
             if ($alreadyEnrolled) {
                 throw BusinessRuleViolation::because('enrollment.duplicate', 'الطالب مسجَّل مسبقاً في هذه الدورة.');
             }
+
+            // A student of the English section joins the mosque's list.
+            $this->sections->join($student, Section::Mosque);
 
             return Enrollment::query()->create([
                 'student_id' => $student->getKey(),

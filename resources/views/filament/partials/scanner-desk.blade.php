@@ -1,6 +1,7 @@
 {{--
     The behaviour of a desk where a USB scanner types the digits of a card
-    and presses Enter (the attendance desk, the sales desk of a market):
+    and presses Enter (the attendance desk, the sales desk of a market,
+    the points desk):
     the box keeps the cursor, and each answer is told by a sound too.
     Used as the x-data of the desk: it needs an input with x-ref="code".
 --}}

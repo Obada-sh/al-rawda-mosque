@@ -33,6 +33,7 @@
             <dl class="facts">
                 <div><dt>الاسم</dt><dd>{{ $student->full_name }}</dd></div>
                 <div><dt>اسم الأب</dt><dd>{{ $student->father_name ?: $blank }}</dd></div>
+                <div><dt>عمل الأب</dt><dd>{{ $student->father_work ?: $blank }}</dd></div>
                 <div><dt>تاريخ الميلاد</dt><dd>{{ $student->birth_date === null ? $blank : Dates::show($student->birth_date) }}</dd></div>
                 <div><dt>العمر</dt><dd>{{ $student->age === null ? $blank : ArabicNoun::year()->count($student->age) }}</dd></div>
                 <div><dt>رقم الطالب</dt><dd>@if (filled($student->phone))<span class="ltr">{{ $student->phone }}</span>@else{{ $blank }}@endif</dd></div>

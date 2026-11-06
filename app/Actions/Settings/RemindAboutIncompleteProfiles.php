@@ -31,7 +31,7 @@ final class RemindAboutIncompleteProfiles
             return false;
         }
 
-        $count = Student::query()->active()->incompleteProfile()->count();
+        $count = Student::query()->inMosque()->active()->incompleteProfile()->count();
 
         if ($count === 0) {
             return false;

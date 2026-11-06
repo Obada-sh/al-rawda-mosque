@@ -47,7 +47,8 @@ use Illuminate\Database\Seeder;
  * Invented data to try the system with, or to train someone on it: a
  * finished course and a running one, circles, teachers (with their own
  * attendance), students with weeks of attendance, recitations, exams and
- * points, a few activities, and months of expenses.
+ * points, a few activities, and months of expenses; and the English
+ * section (EnglishDemoSeeder).
  *
  * Everything is recorded through the same Actions the panel uses, so the
  * demo obeys every rule of the system. It is the same demo every time.
@@ -162,6 +163,9 @@ class DemoSeeder extends Seeder
 
         // One student who never came back is kept in the archive.
         app(ArchiveStudent::class)->handle(app(SaveStudent::class)->handle(['full_name' => 'طالب مؤرشف قديم']));
+
+        // The English section, with two of the mosque's students in it.
+        app(EnglishDemoSeeder::class)->run($everyone);
     }
 
     /**

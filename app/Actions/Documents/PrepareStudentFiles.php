@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  * Builds the files of many students at once, each like the file of one
  * student (StudentFileBuilder), by student name:
  *
- * - every student in the system (StudentFiles::ALL), archived ones only
+ * - every student of the mosque (StudentFiles::ALL), archived ones only
  *   when asked;
  * - the students of a course or of a circle who did not leave it
  *   (COURSE, CIRCLE): their whole file, or only that course (history);
@@ -42,7 +42,7 @@ final class PrepareStudentFiles
             StudentFiles::ALL => $this->everyStudent((bool) ($data['archived'] ?? false)),
             StudentFiles::COURSE => $this->ofCourse(Course::query()->findOrFail($data['course_id'])),
             StudentFiles::CIRCLE => $this->ofCircle(Circle::query()->with('course')->findOrFail($data['circle_id'])),
-            StudentFiles::CHOSEN => ['الطلاب المحدَّدون', null, $this->sorted(Student::query()->whereKey($data['student_ids']))],
+            StudentFiles::CHOSEN => ['الطلاب المحدَّدون', null, $this->sorted(Student::query()->inMosque()->whereKey($data['student_ids']))],
         };
 
         // With a course or a circle, each file may hold that course only.
@@ -67,7 +67,7 @@ final class PrepareStudentFiles
         return [
             $withArchived ? 'كل الطلاب، والمؤرشفون معهم' : 'كل الطلاب',
             null,
-            $this->sorted(Student::query()->when(! $withArchived, fn (Builder $query) => $query->active())),
+            $this->sorted(Student::query()->inMosque()->when(! $withArchived, fn (Builder $query) => $query->active())),
         ];
     }
 

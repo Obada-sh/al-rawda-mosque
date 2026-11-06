@@ -87,7 +87,10 @@ final class BulkAttendanceAction
             });
     }
 
-    private static function tell(BulkAttendanceResult $result): void
+    /**
+     * Says what came of it: also used by the English section's window.
+     */
+    public static function tell(BulkAttendanceResult $result): void
     {
         $notification = Notification::make()
             ->title($result->title())
